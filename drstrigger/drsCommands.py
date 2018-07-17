@@ -7,6 +7,7 @@ from cal_DARK_spirou import main as cal_DARK_spirou
 from cal_loc_RAW_spirou import main as cal_loc_RAW_spirou
 from cal_FF_RAW_spirou import main as cal_FF_RAW_spirou
 from cal_SLIT_spirou import main as cal_SLIT_spirou
+from cal_HC_E2DS_spirou import main as cal_HC_E2DS_spirou
 # (night_name=None, files=None)
 
 from cal_WAVE_E2DS_spirou import main as cal_WAVE_E2DS_spirou
@@ -15,17 +16,24 @@ from cal_WAVE_E2DS_spirou import main as cal_WAVE_E2DS_spirou
 from cal_DRIFTPEAK_E2DS_spirou import main as cal_DRIFTPEAK_E2DS_spirou
 # (night_name=None, reffile=None)
 
+
 # TODO: delete below once above is uncommented
-'''from .dummyCommands import cal_DARK_spirou
+'''
+from .dummyCommands import cal_preprocess_spirou
+from .dummyCommands import cal_DARK_spirou
 from .dummyCommands import cal_loc_RAW_spirou
 from .dummyCommands import cal_FF_RAW_spirou
 from .dummyCommands import cal_SLIT_spirou
 from .dummyCommands import cal_WAVE_E2DS_spirou
-from .dummyCommands import cal_DRIFTPEAK_E2DS_spirou'''
+from .dummyCommands import cal_DRIFTPEAK_E2DS_spirou
+from .dummyCommands import cal_HC_E2DS_spirou
+from .dummyCommands import cal_extract_RAW_spirou
+'''
 
 
 # TODO: delete below once sure it's not needed
-'''from fileproccesser import blocking_subprocess
+'''
+from fileproccesser import blocking_subprocess
 
 
 def recipe_on_file(recipe, night, file):

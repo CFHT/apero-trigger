@@ -1,33 +1,33 @@
-from . import realCommands
+from . import drsCommands
 from .exposureConfigMapper import ExposureTemplate, ConfigCommandMap
 
 
 class CommandMap(ConfigCommandMap):
     def __init__(self):
         super(CommandMap, self).__init__()
-        self.add(ActualTemplates.dark(), realCommands.cal_DARK_spirou)
-        self.add(ActualTemplates.dark_long(), realCommands.cal_DARK_spirou)
-        self.add(ActualTemplates.loc_ab(), realCommands.cal_loc_RAW_spirou)
-        self.add(ActualTemplates.loc_c(), realCommands.cal_loc_RAW_spirou)
-        self.add(ActualTemplates.flat(), realCommands.cal_FF_RAW_spirou)
-        self.add(ActualTemplates.slit(), realCommands.cal_SLIT_spirou)
-        self.add(ActualTemplates.wave1(), realCommands.cal_WAVE_E2DS_spirou)
-        self.add(ActualTemplates.wave2(), realCommands.cal_WAVE_E2DS_spirou)
-        self.add(ActualTemplates.fp1(), realCommands.cal_DRIFTPEAK_E2DS_spirou)
-        self.add(ActualTemplates.fp2(), realCommands.cal_DRIFTPEAK_E2DS_spirou)
-        self.add(ActualTemplates.star(), realCommands.cal_extract_RAW_spirou)
-        self.add(ActualTemplates.star_wave(), realCommands.cal_extract_RAW_spirou)
-        self.add(ActualTemplates.star_fp(), realCommands.cal_extract_RAW_spirou)
-        self.add(ActualTemplates.pol(), realCommands.cal_extract_RAW_spirou)
-        self.add(ActualTemplates.pol_wave(), realCommands.cal_extract_RAW_spirou)
-        self.add(ActualTemplates.pol_fp(), realCommands.cal_extract_RAW_spirou)
+        self.add(ActualTemplates.dark(), drsCommands.cal_DARK_spirou)
+        self.add(ActualTemplates.dark_long(), drsCommands.cal_DARK_spirou)
+        self.add(ActualTemplates.loc_ab(), drsCommands.cal_loc_RAW_spirou)
+        self.add(ActualTemplates.loc_c(), drsCommands.cal_loc_RAW_spirou)
+        self.add(ActualTemplates.flat(), drsCommands.cal_FF_RAW_spirou)
+        self.add(ActualTemplates.slit(), drsCommands.cal_SLIT_spirou)
+        self.add(ActualTemplates.wave1(), drsCommands.cal_WAVE_E2DS_spirou)
+        self.add(ActualTemplates.wave2(), drsCommands.cal_WAVE_E2DS_spirou)
+        self.add(ActualTemplates.fp1(), drsCommands.cal_DRIFTPEAK_E2DS_spirou)
+        self.add(ActualTemplates.fp2(), drsCommands.cal_DRIFTPEAK_E2DS_spirou)
+        self.add(ActualTemplates.star(), drsCommands.cal_extract_RAW_spirou)
+        self.add(ActualTemplates.star_wave(), drsCommands.cal_extract_RAW_spirou)
+        self.add(ActualTemplates.star_fp(), drsCommands.cal_extract_RAW_spirou)
+        self.add(ActualTemplates.pol(), drsCommands.cal_extract_RAW_spirou)
+        self.add(ActualTemplates.pol_wave(), drsCommands.cal_extract_RAW_spirou)
+        self.add(ActualTemplates.pol_fp(), drsCommands.cal_extract_RAW_spirou)
         # self.add(pol_eng, None) TODO
 
 
 class ActualTemplates(ExposureTemplate):
     @classmethod
     def dark(cls):
-        return cls.calibration2(refout='pos_pk', cassout='pos_pk', nexp='*', exptime='<1800')
+        return cls.calibration2(refout='pos_pk', cassout='pos_pk', nexp='3-5', exptime='<1800')
 
     @classmethod
     def dark_long(cls):
@@ -35,21 +35,19 @@ class ActualTemplates(ExposureTemplate):
 
     @classmethod
     def loc_ab(cls):
-        return cls.calibration2(refout='pos_wl', cassout='pos_pk', nexp='=1', exptime='*')
+        return cls.calibration2(refout='pos_wl', cassout='pos_pk', nexp='=5', exptime='*')
 
     @classmethod
     def loc_c(cls):
-        return cls.calibration2(refout='pos_pk', cassout='pos_wl', nexp='=1', exptime='*')
+        return cls.calibration2(refout='pos_pk', cassout='pos_wl', nexp='=5', exptime='*')
 
     @classmethod
     def flat(cls):
-        # workaround since there is no NEXP header for calibrations TODO
-        return cls.calibration2(refout='pos_wl', cassout='pos_wl', nexp='=1', exptime='*')
-        # return cls.calibration2(refout='pos_wl', cassout='pos_wl', nexp='>5', exptime='*')
+        return cls.calibration2(refout='pos_wl', cassout='pos_wl', nexp='=5', exptime='*')
 
     @classmethod
     def slit(cls):
-        return cls.calibration2(refout='pos_fp', cassout='pos_fp', nexp='=1', exptime='*')
+        return cls.calibration2(refout='pos_fp', cassout='pos_fp', nexp='=10', exptime='*')
 
     @classmethod
     def wave1(cls):
@@ -69,7 +67,7 @@ class ActualTemplates(ExposureTemplate):
 
     @classmethod
     def wave_fp(cls):
-        return cls.calibration16(refout='pos_hc1|pos_hc2', cassout='pos_fp', nexp='>2', exptime='*')
+        return cls.calibration16(refout='pos_hc1|pos_hc2', cassout='pos_fp', nexp='=1', exptime='*')
 
     @classmethod
     def fp_wave(cls):
@@ -121,9 +119,7 @@ class ActualTemplates(ExposureTemplate):
 
     @classmethod
     def object_pol(cls, refout):
-        # workaround for missing NEXP header TODO
-        return cls.object(rhomb='P2|P4|P14|P16', refout=refout, nexp='*')
-        # return cls.object(rhomb='P2|P4|P14|P16', refout=refout, nexp='=4')
+        return cls.object(rhomb='P2|P4|P14|P16', refout=refout, nexp='=4')
 
     @classmethod
     def object(cls, rhomb, refout, nexp):

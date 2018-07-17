@@ -5,7 +5,7 @@ PYTHONPATHS = ['/data/spirou/spirou-drs/INTROOT', '/data/spirou/spirou-drs/INTRO
 sys.path.extend(PYTHONPATHS)
 
 import argparse
-from drstrigger.realCommands import cal_preprocess_spirou
+from drstrigger.drsCommands import cal_preprocess_spirou
 
 def main(args):
     night = args.night

@@ -25,7 +25,15 @@ def cal_DRIFTPEAK_E2DS_spirou(night_name, reffile):
     dummy_function(night_name, reffile)
 
 
+def cal_HC_E2DS_spirou(night_name, files):
+    dummy_function(night_name, files)
+
+
 def cal_extract_RAW_spirou(night_name, files):
+    dummy_function(night_name, files)
+
+
+def cal_preprocess_spirou(night_name, files):
     dummy_function(night_name, files)
 
 

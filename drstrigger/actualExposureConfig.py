@@ -32,11 +32,7 @@ class ActualExposureConfig(ExposureConfig):
         missing_keys = []
         for keyword in keyword_map:
             if keyword not in header:
-                # workaround for missing NEXP header in calibrations TODO
-                if keyword == 'NEXP':
-                    header[keyword] = 1
-                else:
-                    missing_keys.append(keyword)
+                missing_keys.append(keyword)
 
         if missing_keys:
             raise MissingKeysError(missing_keys)
