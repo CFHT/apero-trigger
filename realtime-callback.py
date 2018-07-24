@@ -40,3 +40,5 @@ if __name__ == '__main__':
     parser.add_argument('rawpath')
     args = parser.parse_args()
     main(args)
+
+# echo "@say_ status: test spirou realtime status" | nc -q 0 spirou-session 20140

@@ -24,8 +24,8 @@ def sequence_runner(current_sequence, file, night):
 
 def process_file(night, file):
     print("Spirou DRS processing file:", file)
-    blocking_subprocess(os.path.join(bin_dir, 'drstrigger-new.py'), [night, '--file', file], env=env)
+    blocking_subprocess(os.path.join(bin_dir, 'drstrigger.py'), [night, '--file', file], env=env)
 
 def process_sequence(night, files):
     print("Spirou DRS processing sequence:", ', '.join(files))
-    blocking_subprocess(os.path.join(bin_dir, 'drstrigger-new.py'), [night, '--sequence'] + files, env=env)
+    blocking_subprocess(os.path.join(bin_dir, 'drstrigger.py'), [night, '--sequence'] + files, env=env)
