@@ -1,7 +1,11 @@
 #!/data/spirou/venv/bin/python3
 
 import os, argparse, pickle
-from shared import sequence_runner, input_directory
+from shared import sequence_runner, input_directory, set_drs_config_subdir
+
+SEQUENCE_CACHE_FILE = '.sequence.cache'
+
+set_drs_config_subdir('config/realtime/')
 
 def main(args):
     rawpath = args.rawpath
@@ -25,13 +29,14 @@ def setup_symlink(rawpath):
 
 def load_sequence_cache():
     try:
-        return pickle.load(open('sequence.cache', 'rb'))
+        return pickle.load(open(SEQUENCE_CACHE_FILE, 'rb'))
     except (OSError, IOError) as e:
         print("No sequence cache found. This should not appear after the first time this script is run.")
+        return []
 
 def save_sequence_cache(current_sequence):
     try:
-        pickle.dump(current_sequence, open('sequence.cache', 'wb'))
+        pickle.dump(current_sequence, open(SEQUENCE_CACHE_FILE, 'wb'))
     except (OSError, IOError) as e:
         print('Failed to save sequence cache')
 

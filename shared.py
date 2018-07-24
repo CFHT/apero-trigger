@@ -3,10 +3,15 @@ from astropy.io import fits
 from fileproccesser import blocking_subprocess
 
 input_directory = '/data/spirou2/raw/'
-bin_dir = '/data/spirou/realtime/'
+bin_dir = '/data/spirou/trigger/'
 
 env = os.environ.copy()
-# env['DRS_UCONFIG'] = '/data/spirou/realtime/' # figure out new config options for this
+
+def set_drs_config_subdir(subdirectory):
+    set_drs_config_dir(os.path.join(bin_dir, subdirectory))
+
+def set_drs_config_dir(directory):
+    env['DRS_UCONFIG'] = directory
 
 def sequence_runner(current_sequence, file, night):
     if not file.endswith(('g.fits', 'r.fits', 'RW.fits', 'pp.fits')):

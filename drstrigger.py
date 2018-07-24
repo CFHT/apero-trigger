@@ -1,14 +1,14 @@
 #!/data/spirou/venv/bin/python3
 
-import sys, os
-import argparse
-import pickle
+import sys, os, argparse, pickle
 from collections import defaultdict
 from astropy.io import fits
 
 PYTHONPATHS = ['/data/spirou/spirou-drs/INTROOT', '/data/spirou/spirou-drs/INTROOT/bin']
 sys.path.extend(PYTHONPATHS)
 import commands as drsCommands
+
+FP_CACHE_FILE = '.last_fp.cache'
 
 class CommandMap(object):
     def __init__(self):
@@ -33,7 +33,7 @@ class CommandMap(object):
             'HCONE_HCONE': self.__wave,
         })
         try:
-            self.last_fp = pickle.load(open('last_fp.cache', 'rb'))
+            self.last_fp = pickle.load(open(FP_CACHE_FILE, 'rb'))
         except (OSError, IOError) as e:
             pass
 
@@ -61,7 +61,7 @@ class CommandMap(object):
     def __fp(self, night, file):
         self.last_fp = night + '_' + file # To match format output by the DRS
         try:
-            pickle.dump(self.last_fp, open('last_fp.cache', 'wb'))
+            pickle.dump(self.last_fp, open(FP_CACHE_FILE, 'wb'))
         except (OSError, IOError) as e:
             print('Failed to serialize last_fp, this will probably cause an error on cal_WAVE')
         return drsCommands.cal_extract_RAW_spirou(night, file)
