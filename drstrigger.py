@@ -21,7 +21,8 @@ class CommandMap(object):
             'HCONE_HCONE': drsCommands.cal_extract_RAW_spirou,
             'DARK_HCONE': self.__do_nothing,
             'HCONE_DARK': self.__do_nothing,
-            'OBJECT': drsCommands.cal_extract_RAW_spirou,
+            'OBJ_OBJ': drsCommands.cal_extract_RAW_spirou,
+            'OBJ_FP': drsCommands.cal_extract_RAW_spirou,
         })
         self.__process_sequence = defaultdict(lambda: self.__unknown, {
             'DARK_DARK': drsCommands.cal_DARK_spirou,
@@ -81,10 +82,10 @@ class ActualExposureConfig:
             header = fits.open(filename)[0].header
         except:
             raise RuntimeError('Failed to open', filename)
-        if 'DPRTYPE' in header:
+        if 'DPRTYPE' in header and header['DPRTYPE'] != "None":
             return header['DPRTYPE']
         elif 'OBSTYPE' in header and header['OBSTYPE'] == 'OBJECT':
-            return 'OBJECT'
+            return 'OBJ_OBJ'
         else:
             raise RuntimeError('Non-object file missing DPRTYPE keyword', filename)
 
