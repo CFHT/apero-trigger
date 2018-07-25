@@ -6,6 +6,7 @@ from shared import sequence_runner, input_directory, set_drs_config_subdir
 SEQUENCE_CACHE_FILE = '.sequence.cache'
 
 set_drs_config_subdir('config/realtime/')
+sessiondir = '/data/sessions/spirou/'
 
 def main(rawpath):
     night, file = setup_symlink(rawpath)
@@ -15,10 +16,13 @@ def main(rawpath):
 
 def setup_symlink(rawpath):
     rawdir, filename = os.path.split(rawpath)
-    night = os.path.basename(rawdir)
+    if rawdir.startswith(sessiondir):
+        night = rawdir[len(sessiondir):]
+    else:
+        raise RuntimeError('Night directory should start with ' + sessiondir)
     linkdir = os.path.join(input_directory, night)
     if not os.path.exists(linkdir):
-        os.mkdir(linkdir)
+        os.makedirs(linkdir)
     linkpath = os.path.join(linkdir, filename)
     try:
         os.symlink(rawpath, linkpath)
