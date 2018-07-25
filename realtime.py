@@ -7,8 +7,7 @@ SEQUENCE_CACHE_FILE = '.sequence.cache'
 
 set_drs_config_subdir('config/realtime/')
 
-def main(args):
-    rawpath = args.rawpath
+def main(rawpath):
     night, file = setup_symlink(rawpath)
     current_sequence = load_sequence_cache()
     current_sequence = sequence_runner(current_sequence, file, night)
@@ -44,6 +43,6 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('rawpath')
     args = parser.parse_args()
-    main(args)
+    main(args.rawpath)
 
 # echo "@say_ status: test spirou realtime status" | nc -q 0 spirou-session 20140

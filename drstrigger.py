@@ -7,6 +7,7 @@ from astropy.io import fits
 PYTHONPATHS = ['/data/spirou/spirou-drs/INTROOT', '/data/spirou/spirou-drs/INTROOT/bin']
 sys.path.extend(PYTHONPATHS)
 import commands as drsCommands
+from shared import input_directory, reduced_directory
 
 FP_CACHE_FILE = '.last_fp.cache'
 
@@ -21,8 +22,8 @@ class CommandMap(object):
             'HCONE_HCONE': drsCommands.cal_extract_RAW_spirou,
             'DARK_HCONE': self.__do_nothing,
             'HCONE_DARK': self.__do_nothing,
-            'OBJ_OBJ': drsCommands.cal_extract_RAW_spirou,
-            'OBJ_FP': drsCommands.cal_extract_RAW_spirou,
+            'OBJ_OBJ': self.__extract_object,
+            'OBJ_FP': self.__extract_object,
         })
         self.__process_sequence = defaultdict(lambda: self.__unknown, {
             'DARK_DARK': drsCommands.cal_DARK_spirou,
@@ -73,6 +74,17 @@ class CommandMap(object):
             hcone = fiber_filename(night + '_' + files[0], fiber) # To match format output by the DRS
             fp = fiber_filename(self.last_fp, fiber)
             drsCommands.cal_WAVE_E2DS_spirou(night, fp, hcone)
+
+    def __extract_object(self, night, file):
+        result = None
+        result = drsCommands.cal_extract_RAW_spirou(night, file)
+        indir = os.path.join(input_directory, night)
+        outdir = os.path.join(reduced_directory, night)
+        filepath = os.path.join(indir, file)
+        e2ds_files = [os.path.join(outdir , fiber_filename(file, fiber)) for fiber in ('AB', 'A', 'B', 'C')]
+        combined_file = os.path.join(outdir , file.replace('o_pp.fits', 'e.fits'))
+        # create_mef(filepath, e2ds_files, combined_file)
+        return result
 
 
 class ActualExposureConfig:
@@ -132,6 +144,14 @@ def process_seqeunce(night, files):
         return result
     except Exception as e:
         raise RuntimeError('Error processing sequence', files, e)
+
+def create_mef(primary_header_file, extension_files, output_file):
+    primary = fits.open(primary_header_file)[0]
+    mef = fits.HDUList(primary)
+    for ext_file in extension_files:
+        ext = fits.open(ext_file)[0]
+        mef.append(ext)
+    mef.writeto(output_file, overwrite=True)
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()

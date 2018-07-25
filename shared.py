@@ -3,6 +3,7 @@ from astropy.io import fits
 from fileproccesser import blocking_subprocess
 
 input_directory = '/data/spirou2/raw/'
+reduced_directory = '/data/spirou1/reduced/'
 bin_dir = '/data/spirou/trigger/'
 
 env = os.environ.copy()
