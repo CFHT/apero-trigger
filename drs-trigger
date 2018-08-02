@@ -1,0 +1,61 @@
+#!/data/spirou/venv/bin/python3
+
+import os, argparse, glob
+
+from pathhandler import PathHandler
+from drstrigger import drstrigger, sequence_runner, drs_version, trigger_version
+
+
+def print_version_info(drs, trigger):
+    if drs:
+        print(drs_version())
+    elif trigger:
+        print(trigger_version())
+    else:
+        print('DRS version', drs_version(), '-', 'Trigger version', trigger_version())
+
+
+def reduce_night(night):
+    path_pattern = PathHandler(night, '*.fits').raw_path()
+    unsorted_files = [file for file in glob.glob(path_pattern) if os.path.exists(file)]  # filter out broken symlinks
+    all_files = sorted(unsorted_files, key=os.path.getmtime)
+    current_sequence = []
+    for file in all_files:
+        current_sequence = sequence_runner(current_sequence, file, night)
+
+
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser()
+    subparsers = parser.add_subparsers(dest='command')
+    subparsers.required = True
+    version_parse = subparsers.add_parser('version', help='DRS version information')
+    version_flags = version_parse.add_mutually_exclusive_group(required=False)
+    version_flags.add_argument('--drs', action='store_true')
+    version_flags.add_argument('--trigger', action='store_true')
+    realtime_parse = subparsers.add_parser('realtime', help='reduce a file from session directory and update database')
+    realtime_parse.add_argument('filepath')
+    reduce_file_parse = subparsers.add_parser('file', help='reduce a single file')
+    reduce_file_parse.add_argument('night')
+    reduce_file_parse.add_argument('filename')
+    reduce_sequence_parse = subparsers.add_parser('sequence', help='reduce a sequence of files together')
+    reduce_sequence_parse.add_argument('night')
+    reduce_sequence_parse.add_argument('filenames', nargs='+')
+    reduce_night_parser = subparsers.add_parser('night', help='reduce an entire night')
+    reduce_night_parser.add_argument('night')
+    listener_parse = subparsers.add_parser('listener', help='run local http listener for automated realtime calls')
+    realtime_parse.add_argument('port')
+    args = parser.parse_args()
+    if args.command == 'realtime':
+        from realtime import realtime
+        realtime(args.filepath)
+    elif args.command == 'file':
+        drstrigger(args.night, file=args.filename)
+    elif args.command == 'sequence':
+        drstrigger(args.night, sequence=args.filenames)
+    elif args.command == 'night':
+        reduce_night(args.night)
+    elif args.command == 'listener':
+        from listener import run_listener
+        run_listener(args.port)
+    elif args.command == 'version':
+        print_version_info(args.drs, args.trigger)

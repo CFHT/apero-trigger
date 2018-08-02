@@ -1,16 +1,15 @@
-#!/data/spirou/venv/bin/python3
-
-import cherrypy, argparse
+import cherrypy
 from flask import Flask, request
-import realtime
+from realtime import realtime
 
-def main(port):
+
+def run_listener(port):
     app = Flask("realtime-server")
 
     @app.route("/trigger", methods=["POST"])
     def realtime_trigger():
         filename = request.args.get('filename')
-        realtime.main(filename)
+        realtime(filename)
         return '{"success": true}', 200
 
     app.base_url = "http://localhost:" + port
@@ -22,12 +21,3 @@ def main(port):
     print("starting server")
     cherrypy.engine.start()
     print("waiting for requests")
-
-if __name__ == '__main__':
-    parser = argparse.ArgumentParser()
-    parser.add_argument('port')
-    args = parser.parse_args()
-    try:
-        main(args.port)
-    except Exception as e:
-        print(e)
