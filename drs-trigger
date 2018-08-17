@@ -3,7 +3,7 @@
 import os, argparse, glob
 
 from pathhandler import PathHandler
-from drstrigger import drstrigger, sequence_runner, drs_version, trigger_version
+from drstrigger import drstrigger, sequence_runner, drs_version, trigger_version, sort_and_filter_files
 
 
 def print_version_info(drs, trigger):
@@ -17,10 +17,10 @@ def print_version_info(drs, trigger):
 
 def reduce_night(night):
     path_pattern = PathHandler(night, '*.fits').raw_path()
-    unsorted_files = [file for file in glob.glob(path_pattern) if os.path.exists(file)]  # filter out broken symlinks
-    all_files = sorted(unsorted_files, key=os.path.getmtime)
+    all_files = [file for file in glob.glob(path_pattern) if os.path.exists(file)]  # filter out broken symlinks
+    files = sort_and_filter_files(all_files)
     current_sequence = []
-    for file in all_files:
+    for file in files:
         current_sequence = sequence_runner(current_sequence, file, night)
 
 

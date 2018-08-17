@@ -1,4 +1,4 @@
-import sys
+import sys, datetime
 from astropy.io import fits
 
 from commandmap import CommandMap
@@ -9,11 +9,36 @@ TRIGGER_VERSION = '002'
 TELLURIC_STANDARD_PROGRAMS = ['18AE96', '18BE93']
 
 
+def sort_and_filter_files(files):
+    return sort_files_by_date_header(filter_files_by_extension(files))
+
+
+def filter_files_by_extension(files):
+    return [file for file in files if has_usable_file_extension(file)]
+
+
+def has_usable_file_extension(file):
+    return not file.endswith(('g.fits', 'r.fits', 'RW.fits', 'pp.fits'))
+
+
+def sort_files_by_date_header(files):
+    file_times = {}
+    for file in files:
+        header = fits.open(file)[0].header
+        if 'DATE' not in header:
+            print('File', file, 'missing DATE keyword, skipping.')
+        else:
+            date_string = header['DATE']
+            timestamp = datetime.datetime.strptime(date_string, "%Y-%m-%dT%H:%M:%S")
+            file_times[file] = timestamp
+    return sorted(file_times, key=file_times.get)
+
+
 def sequence_runner(current_sequence, file, night):
-    if not file.endswith(('g.fits', 'r.fits', 'RW.fits', 'pp.fits')):
-        hdu = fits.open(file)[0].header
-        exp_index = hdu['CMPLTEXP']
-        exp_total = hdu['NEXP']
+    if has_usable_file_extension(file):
+        header = fits.open(file)[0].header
+        exp_index = header['CMPLTEXP']
+        exp_total = header['NEXP']
         drstrigger(night, file=file)
         current_sequence.append(file)
         if exp_index == exp_total:
