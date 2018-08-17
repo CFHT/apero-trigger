@@ -119,11 +119,9 @@ class ExposureCommandMap(BaseCommandMap):
         try:
             DRS.obj_fit_tellu(path)
         except:
-            # DRS.cal_CCF_E2DS(path, telluric_corrected=False)
-            pass
+            DRS.cal_CCF_E2DS(path, telluric_corrected=False)
         else:
-            # DRS.cal_CCF_E2DS(path, telluric_corrected=True)
-            pass
+            DRS.cal_CCF_E2DS(path, telluric_corrected=True)
 
     def __extract_telluric_standard(self, path):
         self.__extract_object(path)
