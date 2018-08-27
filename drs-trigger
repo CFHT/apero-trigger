@@ -15,10 +15,10 @@ def print_version_info(drs, trigger):
         print('DRS version', drs_version(), '-', 'Trigger version', trigger_version())
 
 
-def reduce_night(night):
+def reduce_night(night, types=None):
     path_pattern = PathHandler(night, '*.fits').raw_path()
     all_files = [file for file in glob.glob(path_pattern) if os.path.exists(file)]  # filter out broken symlinks
-    files = sort_and_filter_files(all_files)
+    files = sort_and_filter_files(all_files, types)
     current_sequence = []
     for file in files:
         current_sequence = sequence_runner(current_sequence, file, night)
@@ -42,6 +42,10 @@ if __name__ == '__main__':
     reduce_sequence_parse.add_argument('filenames', nargs='+')
     reduce_night_parser = subparsers.add_parser('night', help='reduce an entire night')
     reduce_night_parser.add_argument('night')
+    reduce_objects_parser = subparsers.add_parser('objects', help='reduce only objects from a night')
+    reduce_objects_parser.add_argument('night')
+    reduce_calibrations_parser = subparsers.add_parser('calibrations', help='reduce only calibrations from a night')
+    reduce_calibrations_parser.add_argument('night')
     listener_parse = subparsers.add_parser('listener', help='run local http listener for automated realtime calls')
     realtime_parse.add_argument('port')
     args = parser.parse_args()
@@ -54,6 +58,8 @@ if __name__ == '__main__':
         drstrigger(args.night, sequence=args.filenames)
     elif args.command == 'night':
         reduce_night(args.night)
+    elif args.command == 'objects' or args.command == 'calibrations':
+        reduce_night(args.night, types=args.command)
     elif args.command == 'listener':
         from listener import run_listener
         run_listener(args.port)

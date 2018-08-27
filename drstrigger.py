@@ -9,16 +9,29 @@ TRIGGER_VERSION = '003'
 TELLURIC_STANDARD_PROGRAMS = ['18AE96', '18BE93']
 
 
-def sort_and_filter_files(files):
-    return sort_files_by_date_header(filter_files_by_extension(files))
+def sort_and_filter_files(files, types=None):
+    return sort_files_by_date_header(filter_files_by_extension(files, types))
 
 
-def filter_files_by_extension(files):
-    return [file for file in files if has_usable_file_extension(file)]
+def filter_files_by_extension(files, types=None):
+    return [file for file in files if has_desired_extension(file, types)]
 
 
-def has_usable_file_extension(file):
-    return not file.endswith(('g.fits', 'r.fits', 'RW.fits', 'pp.fits'))
+def has_desired_extension(file, types=None):
+    if types is None:
+        return has_calibration_extension(file) or has_object_extension(file)
+    elif types == 'calibrations':
+        return has_calibration_extension(file)
+    elif types == 'objects':
+        return has_object_extension(file)
+
+
+def has_object_extension(file):
+    return file.endswith('o.fits')
+
+
+def has_calibration_extension(file):
+    return file.endswith(('a.fits', 'c.fits', 'd.fits', 'f.fits'))
 
 
 def sort_files_by_date_header(files):
@@ -35,7 +48,7 @@ def sort_files_by_date_header(files):
 
 
 def sequence_runner(current_sequence, file, night):
-    if has_usable_file_extension(file):
+    if has_desired_extension(file):
         header = fits.open(file)[0].header
         exp_index = header['CMPLTEXP']
         exp_total = header['NEXP']
