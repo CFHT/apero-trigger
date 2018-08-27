@@ -30,7 +30,10 @@ def flatten(items):
 def logwrapper(module, night, *args):
     print_args = flatten(args)
     print(module.__NAME__, night, *print_args)
-    return module.main(night, *args)
+    try:
+        return module.main(night, *args)
+    except SystemExit:
+        print('DRS recipe', module.__NAME__, 'failed')
 
 
 def sequence_logwrapper(module, paths):

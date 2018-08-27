@@ -69,8 +69,6 @@ def drstrigger(night, file=None, sequence=None):
             process_sequence(night, sequence)
     except Exception as e:
         print('Error:', e)
-    except SystemExit:
-        print("DRS recipe failed")
 
 
 def process_exposure(night, file):
