@@ -5,7 +5,7 @@ from commandmap import CommandMap
 from pathhandler import PathHandler
 from drswrapper import DRS
 
-TRIGGER_VERSION = '003'
+TRIGGER_VERSION = '004'
 TELLURIC_STANDARD_PROGRAMS = ['18AE96', '18BE93']
 
 
