@@ -12,7 +12,7 @@ SEQUENCE_CACHE_FILE = '.sequence.cache'
 def realtime(rawpath):
     night, file = setup_symlink(rawpath)
     current_sequence = load_sequence_cache()
-    current_sequence = sequence_runner(current_sequence, file, night)
+    current_sequence = sequence_runner(current_sequence, file, night, realtime=True)
     save_sequence_cache(current_sequence)
 
 

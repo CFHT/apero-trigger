@@ -5,7 +5,7 @@ from commandmap import CommandMap
 from pathhandler import PathHandler
 from drswrapper import DRS
 
-TRIGGER_VERSION = '004'
+TRIGGER_VERSION = '005'
 TELLURIC_STANDARD_PROGRAMS = ['18AE96', '18BE93']
 
 
@@ -47,31 +47,31 @@ def sort_files_by_date_header(files):
     return sorted(file_times, key=file_times.get)
 
 
-def sequence_runner(current_sequence, file, night):
+def sequence_runner(current_sequence, file, night, realtime=False):
     if has_desired_extension(file):
         header = fits.open(file)[0].header
         exp_index = header['CMPLTEXP']
         exp_total = header['NEXP']
-        drstrigger(night, file=file)
+        drstrigger(night, file=file, realtime=realtime)
         current_sequence.append(file)
         if exp_index == exp_total:
-            drstrigger(night, sequence=current_sequence)
+            drstrigger(night, sequence=current_sequence, realtime=realtime)
             current_sequence = []
     return current_sequence
 
 
-def drstrigger(night, file=None, sequence=None):
+def drstrigger(night, file=None, sequence=None, realtime=False):
     try:
         sys.argv = [sys.argv[0]]  # Wipe out argv so DRS doesn't rely on CLI arguments instead of what is passed in
         if file is not None:
-            process_exposure(night, file)
+            process_exposure(night, file, realtime)
         if sequence is not None:
-            process_sequence(night, sequence)
+            process_sequence(night, sequence, realtime)
     except Exception as e:
         print('Error:', e)
 
 
-def process_exposure(night, file):
+def process_exposure(night, file, realtime=False):
     path = PathHandler(night, file)
     try:
         CommandMap.preprocess_exposure(path)
@@ -79,20 +79,20 @@ def process_exposure(night, file):
         raise RuntimeError('Error running pre-processing on', path.raw_path(), e)
     exposure_config = exposure_config_from_file(path.preprocessed_path())
     try:
-        result = CommandMap.process_exposure(exposure_config, path)
+        result = CommandMap.process_exposure(exposure_config, path, realtime)
         return result
     except Exception as e:
         raise RuntimeError('Error extracting', path.preprocessed_path(), e)
 
 
-def process_sequence(night, files):
+def process_sequence(night, files, realtime=False):
     paths = [PathHandler(night, file) for file in files]
     sequence_config = exposure_config_from_file(paths[0].preprocessed_path())
     for path in paths:
         exposure_config = exposure_config_from_file(path.preprocessed_path())
         assert exposure_config == sequence_config, 'Exposure type changed mid-sequence'
     try:
-        result = CommandMap.process_sequence(sequence_config, paths)
+        result = CommandMap.process_sequence(sequence_config, paths, realtime)
         return result
     except Exception as e:
         raise RuntimeError('Error processing sequence', files, e)

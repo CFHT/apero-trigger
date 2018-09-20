@@ -9,3 +9,4 @@ config, _warnings = spirouConfig.ReadConfigFile()
 
 input_root_directory = config['DRS_DATA_RAW']
 reduced_root_directory = config['DRS_DATA_REDUC']
+temp_root_directory = config['DRS_DATA_WORKING']

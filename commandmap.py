@@ -5,6 +5,7 @@ from astropy.io import fits
 
 from drswrapper import DRS
 from pathhandler import PathHandler
+from dbinterface import send_headers_to_db
 
 CACHE_FILE = '.drstrigger.cache'
 FIBER_LIST = ('AB', 'A', 'B', 'C')
@@ -22,14 +23,14 @@ class CommandMap:
         return command(path)
 
     @staticmethod
-    def process_exposure(config, path):
-        command_map = ExposureCommandMap()
+    def process_exposure(config, path, realtime=False):
+        command_map = ExposureCommandMap(realtime)
         command = command_map.get_command(config)
         return command(path)
 
     @staticmethod
-    def process_sequence(config, paths):
-        command_map = SequenceCommandMap()
+    def process_sequence(config, paths, realtime=False):
+        command_map = SequenceCommandMap(realtime)
         command = command_map.get_command(config)
         return command(paths)
 
@@ -77,7 +78,7 @@ class BaseCommandMap(object):
 
 
 class ExposureCommandMap(BaseCommandMap):
-    def __init__(self):
+    def __init__(self, realtime=False):
         commands = defaultdict(lambda: self.__unknown, {
             'DARK_DARK': self.__do_nothing,
             'DARK_FLAT': self.__do_nothing,
@@ -94,6 +95,7 @@ class ExposureCommandMap(BaseCommandMap):
             'OBJ_FP': self.__extract_object,
         })
         super().__init__(commands)
+        self.realtime = realtime
 
     def __unknown(self, path):
         print("Unrecognized DPRTYPE, skipping", path.preprocessed_filename())
@@ -115,6 +117,10 @@ class ExposureCommandMap(BaseCommandMap):
 
     def __extract_and_apply_telluric_correction(self, path):
         self.__extract_object(path)
+        (dpr_type, snr10, snr34, snr44) = get_product_headers(path.e2ds_path('AB'))
+        obsid = path.raw_filename().replace('o.fits', '')
+        if self.realtime:
+            send_headers_to_db(obsid, dpr_type, snr10, snr34, snr44)
         # TODO - skip telluric correction on sky exposures
         try:
             DRS.obj_fit_tellu(path)
@@ -208,3 +214,7 @@ def create_mef(primary_header_file, extension_files, output_file):
         ext.header.insert(0, ('EXTNAME', ext_name))
         mef.append(ext)
     mef.writeto(output_file, overwrite=True)
+
+def get_product_headers(input_file):
+    header = fits.open(input_file)[0].header
+    return (header['DPRTYPE'], header['SNR10'], header['SNR34'], header['SNR44'])

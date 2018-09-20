@@ -1,5 +1,5 @@
 import os
-from envloader import input_root_directory, reduced_root_directory
+from envloader import input_root_directory, reduced_root_directory, temp_root_directory
 
 
 class PathHandler(object):
@@ -17,7 +17,7 @@ class PathHandler(object):
         return self.__raw_filename
 
     def preprocessed_path(self):
-        return self.input_file_path(self.preprocessed_filename())
+        return self.temp_file_path(self.preprocessed_filename())
 
     def preprocessed_filename(self):
         return os.path.splitext(self.raw_filename())[0] + '_pp.fits'
@@ -54,6 +54,9 @@ class PathHandler(object):
 
     def input_file_path(self, filename):
         return os.path.join(input_root_directory, self.night(), filename)
+
+    def temp_file_path(self, filename):
+        return os.path.join(temp_root_directory, self.night(), filename)
 
     def reduced_file_path(self, filename):
         return os.path.join(reduced_root_directory, self.night(), filename)

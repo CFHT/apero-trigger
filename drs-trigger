@@ -2,10 +2,6 @@
 
 import os, argparse, glob
 
-from pathhandler import PathHandler
-from drstrigger import drstrigger, sequence_runner, drs_version, trigger_version, sort_and_filter_files
-
-
 def print_version_info(drs, trigger):
     if drs:
         print(drs_version())
@@ -16,6 +12,7 @@ def print_version_info(drs, trigger):
 
 
 def reduce_night(night, types=None):
+    from pathhandler import PathHandler
     path_pattern = PathHandler(night, '*.fits').raw_path()
     all_files = [file for file in glob.glob(path_pattern) if os.path.exists(file)]  # filter out broken symlinks
     files = sort_and_filter_files(all_files, types)
@@ -47,21 +44,23 @@ if __name__ == '__main__':
     reduce_calibrations_parser = subparsers.add_parser('calibrations', help='reduce only calibrations from a night')
     reduce_calibrations_parser.add_argument('night')
     listener_parse = subparsers.add_parser('listener', help='run local http listener for automated realtime calls')
-    realtime_parse.add_argument('port')
+    listener_parse.add_argument('port')
     args = parser.parse_args()
     if args.command == 'realtime':
         from realtime import realtime
         realtime(args.filepath)
-    elif args.command == 'file':
-        drstrigger(args.night, file=args.filename)
-    elif args.command == 'sequence':
-        drstrigger(args.night, sequence=args.filenames)
-    elif args.command == 'night':
-        reduce_night(args.night)
-    elif args.command == 'objects' or args.command == 'calibrations':
-        reduce_night(args.night, types=args.command)
     elif args.command == 'listener':
         from listener import run_listener
         run_listener(args.port)
     elif args.command == 'version':
         print_version_info(args.drs, args.trigger)
+    else:
+        from drstrigger import drstrigger, sequence_runner, drs_version, trigger_version, sort_and_filter_files
+        if args.command == 'file':
+            drstrigger(args.night, file=args.filename)
+        elif args.command == 'sequence':
+            drstrigger(args.night, sequence=args.filenames)
+        elif args.command == 'night':
+            reduce_night(args.night)
+        elif args.command == 'objects' or args.command == 'calibrations':
+            reduce_night(args.night, types=args.command)
