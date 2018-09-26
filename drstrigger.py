@@ -1,12 +1,23 @@
-import sys, datetime
+import sys, datetime, os, glob
 from astropy.io import fits
 
 from commandmap import CommandMap
 from pathhandler import PathHandler
 from drswrapper import DRS
 
-TRIGGER_VERSION = '005'
+TRIGGER_VERSION = '006'
 TELLURIC_STANDARD_PROGRAMS = ['18AE96', '18BE93']
+
+
+def reduce_night(night, types=None):
+    path_pattern = PathHandler(night, '*.fits').raw_path()
+    all_files = [file for file in glob.glob(path_pattern) if os.path.exists(file)]  # filter out broken symlinks
+    files = sort_and_filter_files(all_files, types)
+    current_sequence = []
+    for file in files:
+        drstrigger(night, file=file)
+        completed_sequence = sequence_checker(current_sequence, file)
+        drstrigger(night, sequence=completed_sequence)
 
 
 def sort_and_filter_files(files, types=None):
@@ -47,17 +58,17 @@ def sort_files_by_date_header(files):
     return sorted(file_times, key=file_times.get)
 
 
-def sequence_runner(current_sequence, file, night, realtime=False):
+def sequence_checker(current_sequence, file):
+    finished_sequence = None
     if has_desired_extension(file):
         header = fits.open(file)[0].header
         exp_index = header['CMPLTEXP']
         exp_total = header['NEXP']
-        drstrigger(night, file=file, realtime=realtime)
         current_sequence.append(file)
         if exp_index == exp_total:
-            drstrigger(night, sequence=current_sequence, realtime=realtime)
-            current_sequence = []
-    return current_sequence
+            finished_sequence = current_sequence.copy()
+            current_sequence.clear()
+    return finished_sequence
 
 
 def drstrigger(night, file=None, sequence=None, realtime=False):

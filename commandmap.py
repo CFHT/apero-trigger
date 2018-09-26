@@ -135,7 +135,7 @@ class ExposureCommandMap(BaseCommandMap):
 
 
 class SequenceCommandMap(BaseCommandMap):
-    def __init__(self):
+    def __init__(self, realtime=False):
         commands = defaultdict(lambda: self.__unknown, {
             'DARK_DARK': self.__dark,
             'DARK_FLAT': self.__dark_flat,

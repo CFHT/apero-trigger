@@ -4,16 +4,18 @@ from envconfig import sessiondir, set_drs_config_subdir
 set_drs_config_subdir('config/realtime/')
 
 from pathhandler import PathHandler
-from drstrigger import sequence_runner
+from drstrigger import drstrigger, sequence_checker
 
 SEQUENCE_CACHE_FILE = '.sequence.cache'
 
 
 def realtime(rawpath):
     night, file = setup_symlink(rawpath)
+    drstrigger(night, file=file, realtime=True)
     current_sequence = load_sequence_cache()
-    current_sequence = sequence_runner(current_sequence, file, night, realtime=True)
+    completed_sequence = sequence_checker(current_sequence, file)
     save_sequence_cache(current_sequence)
+    drstrigger(night, sequence=completed_sequence)
 
 
 def setup_symlink(rawpath):

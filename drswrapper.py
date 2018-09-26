@@ -80,7 +80,7 @@ class DRS:
     @staticmethod
     def cal_CCF_E2DS(path, telluric_corrected=False):
         filename = path.telluric_corrected_filename('AB') if telluric_corrected else path.e2ds_filename('AB')
-        return logwrapper(cal_CCF_E2DS_spirou, path.night(), filename, 'gl581_july18_clean_rec2.mas', 0, 100, 1)
+        return logwrapper(cal_CCF_E2DS_spirou, path.night(), filename, 'gl581_Sep18_cleaned.mas', 0, 100, 1)
 
     @staticmethod
     def pol(paths):
