@@ -1,138 +1,106 @@
-import sys, datetime, os, glob
+import os, glob
+from collections import defaultdict
 from astropy.io import fits
 
+from logger import logger
 from commandmap import CommandMap
 from pathhandler import PathHandler
 from drswrapper import DRS
+from fileselector import sort_and_filter_files, is_telluric_standard, is_spectroscopy
 
-TRIGGER_VERSION = '006'
-TELLURIC_STANDARD_PROGRAMS = ['18AE96', '18BE93']
+TRIGGER_VERSION = '007'
 
+class DrsTrigger:
+    def __init__(self, realtime=False, trace=False, ccf_mask=None, **types):
+        self.do_realtime = realtime
+        self.ccf_mask = ccf_mask
+        self.types = defaultdict(lambda: True, types)
+        self.command_map = CommandMap(self.types, trace)
 
-def reduce_night(night, types=None):
-    path_pattern = PathHandler(night, '*.fits').raw_path()
-    all_files = [file for file in glob.glob(path_pattern) if os.path.exists(file)]  # filter out broken symlinks
-    files = sort_and_filter_files(all_files, types)
-    current_sequence = []
-    for file in files:
-        drstrigger(night, file=file)
-        completed_sequence = sequence_checker(current_sequence, file)
-        drstrigger(night, sequence=completed_sequence)
+    def reduce_night(self, night):
+        if self.do_realtime:
+            raise RuntimeError('Realtime mode not meant for reducing entire night!')
+        path_pattern = PathHandler(night, '*.fits').raw_path()
+        all_files = [file for file in glob.glob(path_pattern) if os.path.exists(file)]  # filter out broken symlinks
+        files = sort_and_filter_files(all_files, self.types)  # We can filter out unused input files ahead of time
+        self.reduce(night, files)
 
+    def reduce(self, night, files_in_order):
+        if self.do_realtime:
+            raise RuntimeError('Realtime mode not meant for reducing entire fileset!')
+        current_sequence = []
+        for file in files_in_order:
+            self.preprocess(night, file)
+            self.process_file(night, file)
+            completed_sequence = self.sequence_checker(current_sequence, file)
+            if completed_sequence:
+                self.process_sequence(night, completed_sequence)
 
-def sort_and_filter_files(files, types=None):
-    return sort_files_by_date_header(filter_files_by_extension(files, types))
+    def preprocess(self, night, file):
+        path = PathHandler(night, file)
+        try:
+            self.command_map.preprocess_exposure(path)
+        except Exception as e:
+            raise RuntimeError('Error running pre-processing on', path.raw_path(), e)
 
+    def process_file(self, night, file):
+        path = PathHandler(night, file)
+        exposure_config = self.__exposure_config_from_file(path.preprocessed_path())
+        try:
+            result = self.command_map.process_exposure(exposure_config, path, self.do_realtime, self.ccf_mask)
+            return result
+        except Exception as e:
+            raise RuntimeError('Error extracting', path.preprocessed_path(), e)
 
-def filter_files_by_extension(files, types=None):
-    return [file for file in files if has_desired_extension(file, types)]
+    def process_sequence(self, night, files):
+        paths = [PathHandler(night, file) for file in files]
+        sequence_config = self.__exposure_config_from_file(paths[0].preprocessed_path())
+        for path in paths:
+            exposure_config = self.__exposure_config_from_file(path.preprocessed_path())
+            assert exposure_config == sequence_config, 'Exposure type changed mid-sequence'
+        try:
+            result = self.command_map.process_sequence(sequence_config, paths)
+            return result
+        except Exception as e:
+            raise RuntimeError('Error processing sequence', files, e)
 
-
-def has_desired_extension(file, types=None):
-    if types is None:
-        return has_calibration_extension(file) or has_object_extension(file)
-    elif types == 'calibrations':
-        return has_calibration_extension(file)
-    elif types == 'objects':
-        return has_object_extension(file)
-
-
-def has_object_extension(file):
-    return file.endswith('o.fits')
-
-
-def has_calibration_extension(file):
-    return file.endswith(('a.fits', 'c.fits', 'd.fits', 'f.fits'))
-
-
-def sort_files_by_date_header(files):
-    file_times = {}
-    for file in files:
+    # Appends file to current_sequence, and if sequence is now complete, returns it and clears current_sequence.
+    @staticmethod
+    def sequence_checker(current_sequence, file):
+        finished_sequence = None
         header = fits.open(file)[0].header
-        if 'DATE' not in header:
-            print('File', file, 'missing DATE keyword, skipping.')
+        if 'CMPLTEXP' not in header or 'NEXP' not in header:
+            logger.warning('%s missing CMPLTEXP/NEXP in header, treating sequence as single exposure')
+            exp_index = 1
+            exp_total = 1
         else:
-            date_string = header['DATE']
-            timestamp = datetime.datetime.strptime(date_string, "%Y-%m-%dT%H:%M:%S")
-            file_times[file] = timestamp
-    return sorted(file_times, key=file_times.get)
-
-
-def sequence_checker(current_sequence, file):
-    finished_sequence = None
-    if has_desired_extension(file):
-        header = fits.open(file)[0].header
-        exp_index = header['CMPLTEXP']
-        exp_total = header['NEXP']
+            exp_index = header['CMPLTEXP']
+            exp_total = header['NEXP']
         current_sequence.append(file)
         if exp_index == exp_total:
             finished_sequence = current_sequence.copy()
             current_sequence.clear()
-    return finished_sequence
+        return finished_sequence
 
+    @staticmethod
+    def __exposure_config_from_file(filename):
+        try:
+            header = fits.open(filename)[0].header
+        except:
+            raise RuntimeError('Failed to open', filename)
+        if 'OBSTYPE' in header and header['OBSTYPE'] == 'OBJECT':
+            prefix = 'SPEC' if is_spectroscopy(header) else 'POL'
+            suffix = 'TELL' if is_telluric_standard(header) else 'OBJ'
+            return prefix + '_' + suffix
+        elif 'DPRTYPE' in header and header['DPRTYPE'] != 'None':
+            return header['DPRTYPE']
+        else:
+            raise RuntimeError('Non-object file missing DPRTYPE keyword', filename)
 
-def drstrigger(night, file=None, sequence=None, realtime=False):
-    try:
-        sys.argv = [sys.argv[0]]  # Wipe out argv so DRS doesn't rely on CLI arguments instead of what is passed in
-        if file is not None:
-            process_exposure(night, file, realtime)
-        if sequence is not None:
-            process_sequence(night, sequence, realtime)
-    except Exception as e:
-        print('Error:', e)
+    @staticmethod
+    def drs_version():
+        return DRS.version()
 
-
-def process_exposure(night, file, realtime=False):
-    path = PathHandler(night, file)
-    try:
-        CommandMap.preprocess_exposure(path)
-    except Exception as e:
-        raise RuntimeError('Error running pre-processing on', path.raw_path(), e)
-    exposure_config = exposure_config_from_file(path.preprocessed_path())
-    try:
-        result = CommandMap.process_exposure(exposure_config, path, realtime)
-        return result
-    except Exception as e:
-        raise RuntimeError('Error extracting', path.preprocessed_path(), e)
-
-
-def process_sequence(night, files, realtime=False):
-    paths = [PathHandler(night, file) for file in files]
-    sequence_config = exposure_config_from_file(paths[0].preprocessed_path())
-    for path in paths:
-        exposure_config = exposure_config_from_file(path.preprocessed_path())
-        assert exposure_config == sequence_config, 'Exposure type changed mid-sequence'
-    try:
-        result = CommandMap.process_sequence(sequence_config, paths, realtime)
-        return result
-    except Exception as e:
-        raise RuntimeError('Error processing sequence', files, e)
-
-
-def exposure_config_from_file(filename):
-    try:
-        header = fits.open(filename)[0].header
-    except:
-        raise RuntimeError('Failed to open', filename)
-    if 'OBSTYPE' in header and header['OBSTYPE'] == 'OBJECT':
-        if 'RUNID' not in header:
-            raise RuntimeError('Object file missing RUNID keyword', filename)
-        if 'SBRHB1_P' not in header:
-            raise RuntimeError('Object file missing SBRHB1_P keyword', filename)
-        if 'SBRHB2_P' not in header:
-            raise RuntimeError('Object file missing SBRHB2_P keyword', filename)
-        prefix = 'SPEC' if header['SBRHB1_P'] == 'P16' and header['SBRHB2_P'] == 'P16' else 'POL'
-        suffix = 'TELL' if header['RUNID'] in TELLURIC_STANDARD_PROGRAMS else 'OBJ'
-        return prefix + '_' + suffix
-    elif 'DPRTYPE' in header and header['DPRTYPE'] != "None":
-        return header['DPRTYPE']
-    else:
-        raise RuntimeError('Non-object file missing DPRTYPE keyword', filename)
-
-
-def drs_version():
-    return DRS.version()
-
-
-def trigger_version():
-    return TRIGGER_VERSION
+    @staticmethod
+    def trigger_version():
+        return TRIGGER_VERSION

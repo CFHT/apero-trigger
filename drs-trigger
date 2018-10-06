@@ -1,41 +1,55 @@
 #!/data/spirou/venv/bin/python3
 
 import argparse
-
-def print_version_info(drs, trigger):
-    if drs:
-        print(drs_version())
-    elif trigger:
-        print(trigger_version())
-    else:
-        print('DRS version', drs_version(), '-', 'Trigger version', trigger_version())
-
+import logger
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
+    parser.add_argument('--loglevel', choices=['INFO', 'WARNING', 'ERROR'], default='INFO')
+    parser.add_argument('--logfile')
+    parser.add_argument('--logfilelevel', choices=['INFO', 'WARNING', 'ERROR'], default='INFO')
     subparsers = parser.add_subparsers(dest='command')
     subparsers.required = True
     version_parse = subparsers.add_parser('version', help='DRS version information')
     version_flags = version_parse.add_mutually_exclusive_group(required=False)
     version_flags.add_argument('--drs', action='store_true')
     version_flags.add_argument('--trigger', action='store_true')
-    realtime_parse = subparsers.add_parser('realtime', help='reduce a file from session directory and update database')
+    realtime_parse = subparsers.add_parser('realtime', help='Reduce next file from observing session and update DB')
     realtime_parse.add_argument('filepath')
-    reduce_file_parse = subparsers.add_parser('file', help='reduce a single file')
-    reduce_file_parse.add_argument('night')
-    reduce_file_parse.add_argument('filename')
-    reduce_sequence_parse = subparsers.add_parser('sequence', help='reduce a sequence of files together')
-    reduce_sequence_parse.add_argument('night')
-    reduce_sequence_parse.add_argument('filenames', nargs='+')
-    reduce_night_parser = subparsers.add_parser('night', help='reduce an entire night')
-    reduce_night_parser.add_argument('night')
-    reduce_objects_parser = subparsers.add_parser('objects', help='reduce only objects from a night')
-    reduce_objects_parser.add_argument('night')
-    reduce_calibrations_parser = subparsers.add_parser('calibrations', help='reduce only calibrations from a night')
-    reduce_calibrations_parser.add_argument('night')
-    listener_parse = subparsers.add_parser('listener', help='run local http listener for automated realtime calls')
+    listener_parse = subparsers.add_parser('listener', help='Run local http listener for automated realtime calls')
     listener_parse.add_argument('port')
+    reduce_parser = argparse.ArgumentParser(add_help=False)
+    reduce_parser.add_argument('night')
+    reduce_parser.add_argument('--trace', action='store_true', help='Only simulate DRS commands, requires pp files')
+    reduce_parser.add_argument('--ccfmask', type=str, default='gl581_Sep18_cleaned.mas')
+    # reduce_opts = reduce_parser.add_mutually_exclusive_group(required=True)
+    # reduce_opts.add_argument('night')
+    # reduce_opts.add_argument('runid')
+    exclude_parser = argparse.ArgumentParser(parents=[reduce_parser], add_help=False)
+    exclude_parser.add_argument('--no-preprocess', '--no-pp', dest='preprocess', action='store_false',
+                                help='Skip pre-processing')
+    exclude_parser.set_defaults(preprocess=True)
+    reduce_all_parser = subparsers.add_parser('night', parents=[exclude_parser], help='Reduce entire night directory')
+    reduce_file_parse = subparsers.add_parser('file', parents=[exclude_parser], help='Reduce a single file')
+    reduce_file_parse.add_argument('filename')
+    reduce_sequence_parse = subparsers.add_parser('sequence', parents=[exclude_parser],
+                                                  help='Reduce a sequence of files together')
+    reduce_sequence_parse.add_argument('filenames', nargs='+')
+    steps_parse = subparsers.add_parser('steps', parents=[reduce_parser], help='Perform specified reduction steps')
+    steps_parse.add_argument('--preprocess', '--pp', dest='preprocess', action='store_true')
+    steps_parse.add_argument('--calibrations', '--cals', dest='calibrations', action='store_true')
+    steps_parse.add_argument('--objects', action='store_true')
+    steps_parse.add_argument('--pol', action='store_true')
+    steps_parse.add_argument('--mktellu', action='store_true')
+    steps_parse.add_argument('--fittellu', action='store_true')
+    steps_parse.add_argument('--ccf', action='store_true')
+    # TODO - support for:
+    # - different limiters
+    #   - night
+    #   - runid
+    #   - target
     args = parser.parse_args()
+    logger.configure(console_level=args.loglevel, file=args.logfile, file_level=args.logfilelevel)
     if args.command == 'realtime':
         from realtime import realtime
         realtime(args.filepath)
@@ -43,14 +57,24 @@ if __name__ == '__main__':
         from listener import run_listener
         run_listener(args.port)
     else:
-        from drstrigger import drstrigger, reduce_night, drs_version, trigger_version
-        if args.command == 'file':
-            drstrigger(args.night, file=args.filename)
-        elif args.command == 'sequence':
-            drstrigger(args.night, sequence=args.filenames)
-        elif args.command == 'night':
-            reduce_night(args.night)
-        elif args.command == 'objects' or args.command == 'calibrations':
-            reduce_night(args.night, types=args.command)
-        elif args.command == 'version':
-            print_version_info(args.drs, args.trigger)
+        from drstrigger import DrsTrigger
+        if args.command == 'version':
+            if args.drs:
+                print(DrsTrigger.drs_version())
+            elif args.trigger:
+                print(DrsTrigger.trigger_version())
+            else:
+                print('DRS version', DrsTrigger.drs_version(), '-', 'Trigger version', DrsTrigger.trigger_version())
+        elif args.command == 'steps':
+            trigger = DrsTrigger(trace=args.trace, ccf_mask=args.ccfmask, preprocess=args.preprocess,
+                                 calibrations=args.calibrations, objects=args.objects, pol=args.pol,
+                                 mktellu=args.mktellu, fittellu=args.fittellu, ccf=args.ccf)
+            trigger.reduce_night(args.night)
+        else:
+            trigger = DrsTrigger(trace=args.trace, ccf_mask=args.ccfmask, preprocess=args.preprocess)
+            if args.command == 'night':
+                trigger.reduce_night(args.night)
+            elif args.command == 'file':
+                trigger.process_file(args.night, args.filename)
+            elif args.command == 'sequence':
+                trigger.process_sequence(args.night, args.filenames)

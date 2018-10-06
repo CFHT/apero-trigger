@@ -3,19 +3,26 @@ import os, pickle
 from envconfig import sessiondir, set_drs_config_subdir
 set_drs_config_subdir('config/realtime/')
 
+from logger import logger
 from pathhandler import PathHandler
-from drstrigger import drstrigger, sequence_checker
+from drstrigger import DrsTrigger
 
 SEQUENCE_CACHE_FILE = '.sequence.cache'
 
 
 def realtime(rawpath):
-    night, file = setup_symlink(rawpath)
-    drstrigger(night, file=file, realtime=True)
-    current_sequence = load_sequence_cache()
-    completed_sequence = sequence_checker(current_sequence, file)
-    save_sequence_cache(current_sequence)
-    drstrigger(night, sequence=completed_sequence)
+    try:
+        night, file = setup_symlink(rawpath)
+        trigger = DrsTrigger(realtime=True)
+        trigger.preprocess(night, file)
+        trigger.process_file(night, file)
+        current_sequence = load_sequence_cache()
+        completed_sequence = trigger.sequence_checker(current_sequence, file)
+        save_sequence_cache(current_sequence)
+        if completed_sequence:
+            trigger.process_sequence(night, completed_sequence)
+    except Exception as e:
+        logger.error('Error during realtime processing', exc_info=True)
 
 
 def setup_symlink(rawpath):
@@ -40,7 +47,7 @@ def load_sequence_cache():
     try:
         return pickle.load(open(SEQUENCE_CACHE_FILE, 'rb'))
     except (OSError, IOError) as e:
-        print("No sequence cache found. This should not appear after the first time this script is run.")
+        logger.warning('No sequence cache found. This should not appear after the first time this script is run.')
         return []
 
 
@@ -48,6 +55,6 @@ def save_sequence_cache(current_sequence):
     try:
         pickle.dump(current_sequence, open(SEQUENCE_CACHE_FILE, 'wb'))
     except (OSError, IOError) as e:
-        print('Failed to save sequence cache')
+        logger.error('Failed to save sequence cache')
 
 # echo "@say_ status: test spirou realtime status" | nc -q 0 spirou-session 20140
