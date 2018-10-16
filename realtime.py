@@ -17,7 +17,7 @@ def realtime(rawpath):
         trigger.preprocess(night, file)
         trigger.process_file(night, file)
         current_sequence = load_sequence_cache()
-        completed_sequence = trigger.sequence_checker(current_sequence, file)
+        completed_sequence = trigger.sequence_checker(night, current_sequence, file)
         save_sequence_cache(current_sequence)
         if completed_sequence:
             trigger.process_sequence(night, completed_sequence)

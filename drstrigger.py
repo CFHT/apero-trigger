@@ -32,7 +32,7 @@ class DrsTrigger:
         for file in files_in_order:
             self.preprocess(night, file)
             self.process_file(night, file)
-            completed_sequence = self.sequence_checker(current_sequence, file)
+            completed_sequence = self.sequence_checker(night, current_sequence, file)
             if completed_sequence:
                 self.process_sequence(night, completed_sequence)
 
@@ -66,7 +66,7 @@ class DrsTrigger:
 
     # Appends file to current_sequence, and if sequence is now complete, returns it and clears current_sequence.
     @staticmethod
-    def sequence_checker(current_sequence, file):
+    def sequence_checker(night, current_sequence, file):
         finished_sequence = None
         header = fits.open(file)[0].header
         if 'CMPLTEXP' not in header or 'NEXP' not in header:
@@ -76,6 +76,17 @@ class DrsTrigger:
         else:
             exp_index = header['CMPLTEXP']
             exp_total = header['NEXP']
+        if len(current_sequence) > 0 and exp_index == 1:
+            logger.error('Exposure number reset mid-sequence, throwing away previous sequence: %s', current_sequence)
+            current_sequence.clear()
+#            else:
+#                path_init = PathHandler(night, current_sequence[0])
+#                path_last = PathHandler(night, file)
+#                sequence_config = DrsTrigger.__exposure_config_from_file(path_init.preprocessed_path())
+#                exposure_config = DrsTrigger.__exposure_config_from_file(path_last.preprocessed_path())
+#                if sequence_config != exposure_config:
+#                    logger.error('Exposure type changed mid-sequence, throwing away previous sequence: %s')
+#                    current_sequence.clear()
         current_sequence.append(file)
         if exp_index == exp_total:
             finished_sequence = current_sequence.copy()

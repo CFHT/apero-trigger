@@ -71,13 +71,6 @@ class BaseCommandMap(object):
     def get_cached_sequence(self, night, key):
         return [PathHandler(night, path) for path in self.__trigger_cache[key]]
 
-    def set_flat_queue(self, flats):
-        self.__trigger_cache['FLAT_QUEUE'] = [flat.raw_filename() for flat in flats]
-        self.__save_cache()
-
-    def get_flat_queue(self, night):
-        return [PathHandler(night, flat) for flat in self.__trigger_cache['FLAT_QUEUE']]
-
     def get_command(self, config):
         return self.__commands[config]
 
@@ -190,20 +183,21 @@ class SequenceCommandMap(BaseCommandMap):
             self.drs.cal_BADPIX(last_flat, last_dark)
             # Process remaining loc queues
             dark_flats = self.get_cached_sequence(night, DARK_FLAT_QUEUE_KEY)
-            if len(dark_flats) > 0:
+            if dark_flats:
                 self.drs.cal_loc_RAW(dark_flats)
             self.set_cached_sequence([], DARK_FLAT_QUEUE_KEY)
             flat_darks = self.get_cached_sequence(night, FLAT_DARK_QUEUE_KEY)
-            if len(flat_darks) > 0:
+            if flat_darks:
                 self.drs.cal_loc_RAW(flat_darks)
             self.set_cached_sequence([], FLAT_DARK_QUEUE_KEY)
 
     def __process_cached_flat_queue(self, night):
         if self.steps['calibrations']:
             flat_paths = self.get_cached_sequence(night, FLAT_QUEUE_KEY)
-            result = self.drs.cal_FF_RAW(flat_paths)
-            self.set_cached_sequence([], FLAT_QUEUE_KEY)
-            return result
+            if flat_paths:
+                result = self.drs.cal_FF_RAW(flat_paths)
+                self.set_cached_sequence([], FLAT_QUEUE_KEY)
+                return result
 
     def __fabry_perot(self, paths):
         if self.steps['calibrations']:
