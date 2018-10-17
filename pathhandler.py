@@ -31,17 +31,22 @@ class PathHandler(object):
     def s1d_filename(self, fiber):
         return self.extracted_product_filename('s1d', fiber)
 
-    def e2ds_path(self, fiber):
-        return self.reduced_file_path(self.e2ds_filename(fiber))
+    def e2ds_path(self, fiber, telluric_corrected=False):
+        return self.reduced_file_path(self.e2ds_filename(fiber, telluric_corrected))
 
-    def e2ds_filename(self, fiber):
-        return self.extracted_product_filename('e2ds', fiber)
+    def e2ds_filename(self, fiber, telluric_corrected=False):
+        return self.extracted_product_filename('e2ds', fiber, telluric_corrected)
 
-    def extracted_product_filename(self, product, fiber):
-        return self.preprocessed_filename().replace('.fits', '_' + product + '_' + fiber + '.fits')
+    def ccf_path(self, fiber, mask, telluric_corrected=False):
+        return self.reduced_file_path(self.ccf_filename(fiber, mask, telluric_corrected))
 
-    def telluric_corrected_filename(self, fiber):
-        return self.e2ds_filename(fiber).replace('.fits', '_tellu_corrected.fits')
+    def ccf_filename(self, fiber, mask, telluric_corrected=False):
+        product_name = 'ccf_' + mask.replace('.mas', '')
+        return self.extracted_product_filename(product_name, fiber, telluric_corrected)
+
+    def extracted_product_filename(self, product, fiber, telluric_corrected=False):
+        telluric_suffix =  '_tellu_corrected' if telluric_corrected else ''
+        return self.preprocessed_filename().replace('.fits', '_' + product + '_' + fiber + telluric_suffix + '.fits')
 
     def final_product_path(self, letter):
         return self.reduced_file_path(self.final_product_filename(letter))

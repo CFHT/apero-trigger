@@ -95,6 +95,8 @@ class ExposureCommandMap(BaseCommandMap):
         super().__init__(commands, steps, trace)
         self.realtime = realtime
         self.ccf_mask = ccf_mask
+        if self.ccf_mask is None:
+            self.ccf_mask = 'gl581_Sep18_cleaned.mas'
         self.trace = trace
 
     def __unknown(self, path):
@@ -117,10 +119,6 @@ class ExposureCommandMap(BaseCommandMap):
     def __extract_and_apply_telluric_correction(self, path):
         if self.steps['objects']:
             self.__extract_object(path)
-            if self.realtime:
-                product_headers = get_product_headers(path.e2ds_path('AB'))
-                product_headers['obsid'] = path.raw_filename().replace('o.fits', '')
-                send_headers_to_db(product_headers)
             # TODO - skip telluric correction on sky exposures
             telluric_corrected = False
             try:
@@ -129,7 +127,12 @@ class ExposureCommandMap(BaseCommandMap):
                     telluric_corrected = True
             finally:
                 if self.steps['ccf']:
-                    self.drs.cal_CCF_E2DS(path, telluric_corrected=telluric_corrected, mask=self.ccf_mask)
+                    self.drs.cal_CCF_E2DS(path, self.ccf_mask, telluric_corrected=telluric_corrected)
+            if self.realtime:
+                db_headers = {'obsid': path.raw_filename().replace('o.fits', '')}
+                db_headers.update(get_product_headers(path.e2ds_path('AB')))
+                db_headers.update(get_ccf_headers(path.ccf_path('AB', self.ccf_mask, telluric_corrected)))
+                send_headers_to_db(db_headers)
 
     def __extract_telluric_standard(self, path):
         if self.steps['objects']:
@@ -252,4 +255,16 @@ def get_product_headers(input_file):
         'snr10': header['SNR10'],
         'snr34': header['SNR34'],
         'snr44': header['SNR44']
+    }
+
+
+def get_ccf_headers(input_file):
+    header = fits.open(input_file)[0].header
+    return {
+        'ccfmask': header['CCFMASK'],
+        'ccfmacpp': header['CCFMACPP'],
+        'ccfcontr': header['CCFCONTR'],
+        'ccfrv': header['CCFRV'],
+        'ccfrvc': header['CCFRVC'],
+        'ccffwhm': header['CCFFWHM']
     }

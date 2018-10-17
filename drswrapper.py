@@ -69,10 +69,8 @@ class DRS:
         fp_file = fp_path.e2ds_filename(fiber)
         return self.__logwrapper(cal_WAVE_E2DS_EA_spirou, hc_path.night(), fp_file, [hc_file])
 
-    def cal_CCF_E2DS(self, path, telluric_corrected=False, mask=None):
-        if mask is None:
-            mask = 'gl581_Sep18_cleaned.mas'
-        filename = path.telluric_corrected_filename('AB') if telluric_corrected else path.e2ds_filename('AB')
+    def cal_CCF_E2DS(self, path, mask, telluric_corrected):
+        filename = path.e2ds_filename('AB', telluric_corrected)
         return self.__logwrapper(cal_CCF_E2DS_spirou, path.night(), filename, mask, 0, 100, 1)
 
     def pol(self, paths):
