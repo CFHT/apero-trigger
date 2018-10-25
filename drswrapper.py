@@ -1,6 +1,6 @@
 from collections import Iterable
 import sys
-from logger import logger
+from logger import logger, director_message
 
 import envloader # Setup Python path to include DRS paths
 
@@ -31,8 +31,9 @@ def flatten(items):
 
 
 class DRS:
-    def __init__(self, trace=False):
+    def __init__(self, trace=False, realtime=False):
         self.trace = trace
+        self.realtime = realtime
 
     def cal_preprocess(self, path):
         return self.__logwrapper(cal_preprocess_spirou, path.night(), path.raw_filename())
@@ -96,8 +97,12 @@ class DRS:
                 return module.main(night, *args)
             except SystemExit:
                 logger.error('DRS recipe %s failed with a system exit', module.__NAME__)
+                if self.realtime:
+                    director_message('DRS command failed (exit): ' + command_string, level='warning')
             except Exception as error:
                 logger.error('DRS recipe %s failed with uncaught exception', module.__NAME__, exc_info=True)
+                if self.realtime:
+                    director_message('DRS command failed (exception): ' + command_string, level='warning')
 
     def __sequence_logwrapper(self, module, paths):
         return self.__logwrapper(module, paths[0].night(), [path.preprocessed_filename() for path in paths])

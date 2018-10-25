@@ -18,32 +18,35 @@ FLAT_DARK_QUEUE_KEY = 'FLAT_DARK_QUEUE'
 FLAT_QUEUE_KEY = 'FLAT_QUEUE'
 
 class CommandMap:
-    def __init__(self, steps, trace):
+    def __init__(self, steps, trace, realtime):
         self.steps = steps
         self.trace = trace
+        self.realtime = realtime
 
     def preprocess_exposure(self, path):
         if self.steps['preprocess']:
-            command = DRS(self.trace).cal_preprocess
+            command = DRS(self.trace, self.realtime).cal_preprocess
             return command(path)
 
-    def process_exposure(self, config, path, realtime=False, ccf_mask=None):
-        command_map = ExposureCommandMap(self.steps, self.trace, realtime, ccf_mask)
+    def process_exposure(self, config, path, ccf_mask=None):
+        command_map = ExposureCommandMap(self.steps, self.trace, self.realtime, ccf_mask)
         command = command_map.get_command(config)
         return command(path)
 
     def process_sequence(self, config, paths):
-        command_map = SequenceCommandMap(self.steps, self.trace)
+        command_map = SequenceCommandMap(self.steps, self.trace, self.realtime)
         command = command_map.get_command(config)
         return command(paths)
 
 
 class BaseCommandMap(object):
-    def __init__(self, commands, steps, trace):
+    def __init__(self, commands, steps, trace, realtime):
         self.__commands = commands
         self.__load_cache()
         self.steps = steps
-        self.drs = DRS(trace)
+        self.trace = trace
+        self.realtime = realtime
+        self.drs = DRS(trace, realtime)
 
     def __save_cache(self):
         try:
@@ -92,12 +95,10 @@ class ExposureCommandMap(BaseCommandMap):
             'POL_TELL': self.__extract_telluric_standard,
             'OBJ_FP': self.__extract_object,
         })
-        super().__init__(commands, steps, trace)
-        self.realtime = realtime
+        super().__init__(commands, steps, trace, realtime)
         self.ccf_mask = ccf_mask
         if self.ccf_mask is None:
             self.ccf_mask = 'gl581_Sep18_cleaned.mas'
-        self.trace = trace
 
     def __unknown(self, path):
         logger.warning('Unrecognized DPRTYPE, skipping exposure %s', path.preprocessed_filename())
@@ -142,7 +143,7 @@ class ExposureCommandMap(BaseCommandMap):
 
 
 class SequenceCommandMap(BaseCommandMap):
-    def __init__(self, steps, trace):
+    def __init__(self, steps, trace, realtime=False):
         commands = defaultdict(lambda: self.__unknown, {
             'DARK_DARK': self.__dark,
             'DARK_FLAT': self.__dark_flat,
@@ -153,7 +154,7 @@ class SequenceCommandMap(BaseCommandMap):
             'POL_OBJ': self.__polar,
             'POL_TELL': self.__polar,
         })
-        super().__init__(commands, steps, trace)
+        super().__init__(commands, steps, trace, realtime)
 
     def __unknown(self, paths):
         logger.warning('Unrecognized DPRTYPE, skipping sequence %s',

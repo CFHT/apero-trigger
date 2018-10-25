@@ -56,5 +56,3 @@ def save_sequence_cache(current_sequence):
         pickle.dump(current_sequence, open(SEQUENCE_CACHE_FILE, 'wb'))
     except (OSError, IOError) as e:
         logger.error('Failed to save sequence cache')
-
-# echo "@say_ status: test spirou realtime status" | nc -q 0 spirou-session 20140

@@ -15,7 +15,7 @@ class DrsTrigger:
         self.do_realtime = realtime
         self.ccf_mask = ccf_mask
         self.types = defaultdict(lambda: True, types)
-        self.command_map = CommandMap(self.types, trace)
+        self.command_map = CommandMap(self.types, trace,  realtime)
 
     def reduce_night(self, night):
         if self.do_realtime:
@@ -47,7 +47,7 @@ class DrsTrigger:
         path = PathHandler(night, file)
         exposure_config = self.__exposure_config_from_file(path.preprocessed_path())
         try:
-            result = self.command_map.process_exposure(exposure_config, path, self.do_realtime, self.ccf_mask)
+            result = self.command_map.process_exposure(exposure_config, path, self.ccf_mask)
             return result
         except Exception as e:
             raise RuntimeError('Error extracting', path.preprocessed_path(), e)
