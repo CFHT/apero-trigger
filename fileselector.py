@@ -17,6 +17,7 @@ def is_desired_type(file, types):
     return (types['preprocess'] and (has_calibration_extension(file) or has_object_extension(file)) or
             types['calibrations'] and has_calibration_extension(file) or
             types['objects'] and has_object_extension(file) or
+            types['pol'] and has_object_extension(file) or
             types['mktellu'] and has_object_extension(file) and is_telluric_standard(fits.open(file)[0].header) or
             types['fittellu'] and has_object_extension(file) and not is_telluric_standard(fits.open(file)[0].header) or
             # TODO: handle skipping sky exposures when command map is updated to do so
