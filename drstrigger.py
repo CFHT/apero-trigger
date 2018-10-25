@@ -8,7 +8,7 @@ from pathhandler import PathHandler
 from drswrapper import DRS
 from fileselector import sort_and_filter_files, is_telluric_standard, is_spectroscopy
 
-TRIGGER_VERSION = '007'
+TRIGGER_VERSION = '008'
 
 class DrsTrigger:
     def __init__(self, realtime=False, trace=False, ccf_mask=None, **types):
