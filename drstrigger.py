@@ -30,7 +30,6 @@ class DrsTrigger:
             raise RuntimeError('Realtime mode not meant for reducing entire fileset!')
         current_sequence = []
         for file in files_in_order:
-            self.preprocess(night, file)
             self.process_file(night, file)
             completed_sequence = self.sequence_checker(night, current_sequence, file)
             if completed_sequence:
@@ -44,6 +43,7 @@ class DrsTrigger:
             raise RuntimeError('Error running pre-processing on', path.raw_path(), e)
 
     def process_file(self, night, file):
+        self.preprocess(night, file)
         path = PathHandler(night, file)
         exposure_config = self.__exposure_config_from_file(path.preprocessed_path())
         try:
