@@ -15,6 +15,7 @@ import cal_SHAPE_spirou
 import cal_HC_E2DS_EA_spirou
 import cal_WAVE_E2DS_EA_spirou
 import cal_CCF_E2DS_spirou
+import cal_CCF_E2DS_FP_spirou
 import pol_spirou
 import obj_mk_tellu
 import obj_fit_tellu
@@ -72,6 +73,7 @@ class DRS:
 
     def cal_CCF_E2DS(self, path, mask, telluric_corrected):
         filename = path.e2ds_filename('AB', telluric_corrected)
+        self.__logwrapper(cal_CCF_E2DS_FP_spirou, path.night(), filename, mask, 0, 100, 1)
         return self.__logwrapper(cal_CCF_E2DS_spirou, path.night(), filename, mask, 0, 100, 1)
 
     def pol(self, paths):
