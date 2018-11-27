@@ -12,7 +12,7 @@ CACHE_FILE = '.drstrigger.cache'
 FIBER_LIST = ('AB', 'A', 'B', 'C')
 
 LAST_DARK_KEY = 'LAST_DARK'
-LAST_FP_KEY = 'LAST_FP'
+FP_QUEUE_KEY = 'FP_QUEUE'
 DARK_FLAT_QUEUE_KEY = 'DARK_FLAT_QUEUE'
 FLAT_DARK_QUEUE_KEY = 'FLAT_DARK_QUEUE'
 FLAT_QUEUE_KEY = 'FLAT_QUEUE'
@@ -85,8 +85,8 @@ class ExposureCommandMap(BaseCommandMap):
             'DARK_FLAT': self.__do_nothing,
             'FLAT_DARK': self.__do_nothing,
             'FLAT_FLAT': self.__do_nothing,
-            'FP_FP': self.__do_nothing,  # Need to wait to extract until we have slit
-            'HCONE_HCONE': self.__extract_hcone,
+            'FP_FP': self.__do_nothing,
+            'HCONE_HCONE': self.__do_nothing,
             'DARK_HCONE': self.__do_nothing,
             'HCONE_DARK': self.__do_nothing,
             'SPEC_OBJ': self.__extract_and_apply_telluric_correction,
@@ -106,10 +106,6 @@ class ExposureCommandMap(BaseCommandMap):
 
     def __do_nothing(self, path):
         return None
-
-    def __extract_hcone(self, path):
-        if self.steps['calibrations']:
-            return self.drs.cal_extract_RAW(path)
 
     def __extract_object(self, path):
         result = self.drs.cal_extract_RAW(path)
@@ -150,7 +146,7 @@ class SequenceCommandMap(BaseCommandMap):
             'FLAT_DARK': self.__flat_dark,
             'FLAT_FLAT': self.__flat,
             'FP_FP': self.__fabry_perot,
-            'HCONE_HCONE': self.__wave,
+            'HCONE_HCONE': self.__hc_one,
             'POL_OBJ': self.__polar,
             'POL_TELL': self.__polar,
         })
@@ -186,42 +182,56 @@ class SequenceCommandMap(BaseCommandMap):
             assert last_dark is not None, 'Need a known DARK file for cal_BADPIX'
             self.drs.cal_BADPIX(last_flat, last_dark)
             # Process remaining loc queues
-            dark_flats = self.get_cached_sequence(night, DARK_FLAT_QUEUE_KEY)
-            if dark_flats:
-                self.drs.cal_loc_RAW(dark_flats)
-            self.set_cached_sequence([], DARK_FLAT_QUEUE_KEY)
-            flat_darks = self.get_cached_sequence(night, FLAT_DARK_QUEUE_KEY)
-            if flat_darks:
-                self.drs.cal_loc_RAW(flat_darks)
-            self.set_cached_sequence([], FLAT_DARK_QUEUE_KEY)
+            self.__process_cached_loc_queue(night, DARK_FLAT_QUEUE_KEY)
+            self.__process_cached_loc_queue(night, FLAT_DARK_QUEUE_KEY)
+
+    def __process_cached_loc_queue(self, night, cache_key):
+        paths = self.get_cached_sequence(night, cache_key)
+        if paths:
+            self.drs.cal_loc_RAW(paths)
+        self.set_cached_sequence([], cache_key)
+        return paths
 
     def __process_cached_flat_queue(self, night):
         if self.steps['calibrations']:
             flat_paths = self.get_cached_sequence(night, FLAT_QUEUE_KEY)
             if flat_paths:
-                result = self.drs.cal_FF_RAW(flat_paths)
+                self.drs.cal_FF_RAW(flat_paths)
                 self.set_cached_sequence([], FLAT_QUEUE_KEY)
-                return result
+                return flat_paths
 
     def __fabry_perot(self, paths):
         if self.steps['calibrations']:
-            result = self.drs.cal_SLIT(paths)
-            self.drs.cal_SHAPE(paths)
-            self.__process_cached_flat_queue(paths[0].night())  # Can finally flat field once we have the tilt
-            last_fp = paths[-1]
-            self.drs.cal_extract_RAW(last_fp)  # TODO should all fp files be extracted together as a single image?
-            self.set_cached_file(last_fp, LAST_FP_KEY)
-            return result
+            self.set_cached_sequence(paths, FP_QUEUE_KEY)
 
-    def __wave(self, paths):
+    def __process_cached_fp_queue(self, hc_path):
+        if self.steps['calibrations']:
+            fp_paths = self.get_cached_sequence(hc_path.night(), FP_QUEUE_KEY)
+            self.drs.cal_SLIT(fp_paths)
+            self.drs.cal_SHAPE(hc_path, fp_paths)
+            self.__process_cached_flat_queue(fp_paths[0].night())  # Can finally flat field once we have the tilt
+            last_fp = fp_paths[-1]
+            self.drs.cal_extract_RAW(last_fp)  # TODO should all fp files be extracted together as a single image?
+            self.set_cached_sequence([], FP_QUEUE_KEY)
+            return fp_paths
+
+    def __hc_one(self, paths):
         if self.steps['calibrations']:
             assert len(paths) == 1, 'Too many HCONE_HCONE files'
             hc_path = paths[0]
-            fp_path = self.get_cached_file(hc_path.night(), LAST_FP_KEY)
+            fp_paths = self.__process_cached_fp_queue(hc_path)
+            last_fp = fp_paths[-1]
+            self.drs.cal_extract_RAW(hc_path)
+            self.__wave(hc_path, last_fp)
+
+    def __wave(self, hc_path, fp_path):
+        if self.steps['calibrations']:
             assert fp_path is not None, 'Need an extracted FP file for cal_WAVE'
             for fiber in FIBER_LIST:
-                self.drs.cal_HC_E2DS(hc_path, fiber)
-                self.drs.cal_WAVE_E2DS(fp_path, hc_path, fiber)
+                pass
+                # Wavelength recipes currently not working all that well
+                #self.drs.cal_HC_E2DS(hc_path, fiber)
+                #self.drs.cal_WAVE_E2DS(fp_path, hc_path, fiber)
 
     def __polar(self, paths):
         if self.steps['pol']:
