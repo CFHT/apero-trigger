@@ -1,7 +1,7 @@
 import os, pickle
 
 from envconfig import sessiondir, set_drs_config_subdir
-set_drs_config_subdir('config/realtime/')
+set_drs_config_subdir('realtime')
 
 from logger import logger
 from pathhandler import PathHandler

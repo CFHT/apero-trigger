@@ -8,6 +8,7 @@ if __name__ == '__main__':
     parser.add_argument('--loglevel', choices=['INFO', 'WARNING', 'ERROR'], default='INFO')
     parser.add_argument('--logfile')
     parser.add_argument('--logfilelevel', choices=['INFO', 'WARNING', 'ERROR'], default='INFO')
+    parser.add_argument('--config', help='Use custom DRS config directory')
     subparsers = parser.add_subparsers(dest='command')
     subparsers.required = True
     version_parse = subparsers.add_parser('version', help='DRS version information')
@@ -50,6 +51,9 @@ if __name__ == '__main__':
     #   - target
     args = parser.parse_args()
     logger.configure(console_level=args.loglevel, file=args.logfile, file_level=args.logfilelevel)
+    if args.config is not None:
+        import envconfig
+        envconfig.set_drs_config_subdir(args.config)
     if args.command == 'realtime':
         from realtime import realtime
         realtime(args.filepath)
