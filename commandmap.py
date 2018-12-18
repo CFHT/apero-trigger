@@ -210,8 +210,8 @@ class SequenceCommandMap(BaseCommandMap):
             self.drs.cal_SLIT(fp_paths)
             self.drs.cal_SHAPE(hc_path, fp_paths)
             self.__process_cached_flat_queue(fp_paths[0].night())  # Can finally flat field once we have the tilt
-            last_fp = fp_paths[-1]
-            self.drs.cal_extract_RAW(last_fp)  # TODO should all fp files be extracted together as a single image?
+            for fp_path in fp_paths:
+                self.drs.cal_extract_RAW(fp_path)
             self.set_cached_sequence([], FP_QUEUE_KEY)
             return fp_paths
 
@@ -228,10 +228,8 @@ class SequenceCommandMap(BaseCommandMap):
         if self.steps['calibrations']:
             assert fp_path is not None, 'Need an extracted FP file for cal_WAVE'
             for fiber in FIBER_LIST:
-                pass
-                # Wavelength recipes currently not working all that well
-                #self.drs.cal_HC_E2DS(hc_path, fiber)
-                #self.drs.cal_WAVE_E2DS(fp_path, hc_path, fiber)
+                self.drs.cal_HC_E2DS(hc_path, fiber)
+                self.drs.cal_WAVE_E2DS(fp_path, hc_path, fiber)
 
     def __polar(self, paths):
         if self.steps['pol']:
@@ -272,10 +270,10 @@ def get_product_headers(input_file):
 def get_ccf_headers(input_file):
     header = fits.open(input_file)[0].header
     return {
-        'ccfmask': header['CCFMASK'],
-        'ccfmacpp': header['CCFMACPP'],
-        'ccfcontr': header['CCFCONTR'],
-        'ccfrv': header['CCFRV'],
+        'ccfmask': header['CCFMASK1'],
+        'ccfmacpp': header['CCFMACP1'],
+        'ccfcontr': header['CCFCONT1'],
+        'ccfrv': header['CCFRV1'],
         'ccfrvc': header['CCFRVC'],
-        'ccffwhm': header['CCFFWHM']
+        'ccffwhm': header['CCFFWHM1']
     }

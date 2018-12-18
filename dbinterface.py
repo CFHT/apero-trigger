@@ -9,7 +9,7 @@ try:
     with open(keyfile, 'r') as fileread:
         bearer_token = fileread.read().strip()
 except:
-    logger.error('Failed to load API bearer token', exc_info=True)
+    logger.error('Failed to load API bearer token, will not be able to access database', exc_info=False)
     bearer_token = None
 
 def send_headers_to_db(header_dict):

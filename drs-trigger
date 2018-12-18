@@ -18,7 +18,7 @@ if __name__ == '__main__':
     realtime_parse = subparsers.add_parser('realtime', help='Reduce next file from observing session and update DB')
     realtime_parse.add_argument('filepath')
     listener_parse = subparsers.add_parser('listener', help='Run local http listener for automated realtime calls')
-    listener_parse.add_argument('port')
+    listener_parse.add_argument('--port', default=9998)
     reduce_parser = argparse.ArgumentParser(add_help=False)
     reduce_parser.add_argument('night')
     reduce_parser.add_argument('--trace', action='store_true', help='Only simulate DRS commands, requires pp files')

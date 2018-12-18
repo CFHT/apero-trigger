@@ -12,7 +12,6 @@ import cal_loc_RAW_spirou
 import cal_FF_RAW_spirou
 import cal_SLIT_spirou
 import cal_SHAPE_spirou
-import cal_SHAPE_spirou2
 import cal_HC_E2DS_EA_spirou
 import cal_WAVE_E2DS_EA_spirou
 import cal_CCF_E2DS_spirou
@@ -64,7 +63,7 @@ class DRS:
         night = hc_path.night()
         hc_file = hc_path.preprocessed_filename()
         fp_files = [fp_path.preprocessed_filename() for fp_path in fp_paths]
-        return self.__logwrapper(cal_SHAPE_spirou2, night, hc_file, fp_files)
+        return self.__logwrapper(cal_SHAPE_spirou, night, hc_file, fp_files)
 
     def cal_HC_E2DS(self, path, fiber):
         file = path.e2ds_filename(fiber)
