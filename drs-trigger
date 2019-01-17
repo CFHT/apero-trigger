@@ -59,7 +59,7 @@ if __name__ == '__main__':
         realtime(args.filepath)
     elif args.command == 'listener':
         from listener import run_listener
-        run_listener(args.port)
+        run_listener(str(args.port))
     else:
         from drstrigger import DrsTrigger
         if args.command == 'version':

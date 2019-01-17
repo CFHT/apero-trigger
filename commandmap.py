@@ -116,26 +116,26 @@ class ExposureCommandMap(BaseCommandMap):
     def __extract_and_apply_telluric_correction(self, path):
         if self.steps['objects']:
             self.__extract_object(path)
-            # TODO - skip telluric correction on sky exposures
-            telluric_corrected = False
-            try:
-                if self.steps['fittellu']:
-                    self.drs.obj_fit_tellu(path)
-                    telluric_corrected = True
-            finally:
-                if self.steps['ccf']:
-                    self.drs.cal_CCF_E2DS(path, self.ccf_mask, telluric_corrected=telluric_corrected)
-            if self.realtime:
-                db_headers = {'obsid': path.raw_filename().replace('o.fits', '')}
-                db_headers.update(get_product_headers(path.e2ds_path('AB')))
-                db_headers.update(get_ccf_headers(path.ccf_path('AB', self.ccf_mask, telluric_corrected)))
-                send_headers_to_db(db_headers)
+        # TODO - skip telluric correction on sky exposures
+        telluric_corrected = False
+        try:
+            if self.steps['fittellu']:
+                self.drs.obj_fit_tellu(path)
+                telluric_corrected = True
+        finally:
+            if self.steps['ccf']:
+                self.drs.cal_CCF_E2DS(path, self.ccf_mask, telluric_corrected=telluric_corrected)
+        if self.realtime:
+            db_headers = {'obsid': path.raw_filename().replace('o.fits', '')}
+            db_headers.update(get_product_headers(path.e2ds_path('AB')))
+            db_headers.update(get_ccf_headers(path.ccf_path('AB', self.ccf_mask, telluric_corrected)))
+            send_headers_to_db(db_headers)
 
     def __extract_telluric_standard(self, path):
         if self.steps['objects']:
             self.__extract_object(path)
-            if self.steps['mktellu']:
-                self.drs.obj_mk_tellu(path)
+        if self.steps['mktellu']:
+            self.drs.obj_mk_tellu(path)
 
 
 class SequenceCommandMap(BaseCommandMap):

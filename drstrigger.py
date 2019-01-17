@@ -70,7 +70,7 @@ class DrsTrigger:
         finished_sequence = None
         header = fits.open(file)[0].header
         if 'CMPLTEXP' not in header or 'NEXP' not in header:
-            logger.warning('%s missing CMPLTEXP/NEXP in header, treating sequence as single exposure')
+            logger.warning('%s missing CMPLTEXP/NEXP in header, treating sequence as single exposure', file)
             exp_index = 1
             exp_total = 1
         else:

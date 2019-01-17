@@ -101,11 +101,11 @@ class DRS:
             try:
                 return module.main(night, *args)
             except SystemExit:
-                logger.error('DRS recipe %s failed with a system exit', module.__NAME__)
+                logger.error('DRS recipe failed with a system exit: %s', command_string)
                 if self.realtime:
                     director_message('DRS command failed (exit): ' + command_string, level='warning')
             except Exception as error:
-                logger.error('DRS recipe %s failed with uncaught exception', module.__NAME__, exc_info=True)
+                logger.error('DRS recipe failed with uncaught exception: %s', command_string, exc_info=True)
                 if self.realtime:
                     director_message('DRS command failed (exception): ' + command_string, level='warning')
 
