@@ -32,10 +32,10 @@ def setup_symlink(rawpath):
     else:
         raise RuntimeError('Night directory should start with ' + sessiondir)
     path = PathHandler(night, filename)
-    linkdir = path.input_directory()
+    linkdir = path.input_directory
     if not os.path.exists(linkdir):
         os.makedirs(linkdir)
-    linkpath = path.raw_path()
+    linkpath = path.raw.fullpath
     try:
         os.symlink(rawpath, linkpath)
     except FileExistsError as e:

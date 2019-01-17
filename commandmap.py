@@ -61,14 +61,14 @@ class BaseCommandMap(object):
             self.__trigger_cache = {}
 
     def set_cached_file(self, path, key):
-        self.__trigger_cache[key] = path.raw_filename()
+        self.__trigger_cache[key] = path.raw.filename
         self.__save_cache()
 
     def get_cached_file(self, night, key):
         return PathHandler(night, self.__trigger_cache[key])
 
     def set_cached_sequence(self, paths, key):
-        self.__trigger_cache[key] = [path.raw_filename() for path in paths]
+        self.__trigger_cache[key] = [path.raw.filename for path in paths]
         self.__save_cache()
 
     def get_cached_sequence(self, night, key):
@@ -101,7 +101,7 @@ class ExposureCommandMap(BaseCommandMap):
             self.ccf_mask = 'gl581_Sep18_cleaned.mas'
 
     def __unknown(self, path):
-        logger.warning('Unrecognized DPRTYPE, skipping exposure %s', path.preprocessed_filename())
+        logger.warning('Unrecognized DPRTYPE, skipping exposure %s', path.preprocessed.filename)
         return None
 
     def __do_nothing(self, path):
@@ -126,9 +126,9 @@ class ExposureCommandMap(BaseCommandMap):
             if self.steps['ccf']:
                 self.drs.cal_CCF_E2DS(path, self.ccf_mask, telluric_corrected=telluric_corrected)
         if self.realtime:
-            db_headers = {'obsid': path.raw_filename().replace('o.fits', '')}
-            db_headers.update(get_product_headers(path.e2ds_path('AB')))
-            db_headers.update(get_ccf_headers(path.ccf_path('AB', self.ccf_mask, telluric_corrected)))
+            db_headers = {'obsid': path.raw.filename.replace('o.fits', '')}
+            db_headers.update(get_product_headers(path.e2ds('AB').fullpath))
+            db_headers.update(get_ccf_headers(path.ccf('AB', self.ccf_mask, telluric_corrected).fullpath))
             send_headers_to_db(db_headers)
 
     def __extract_telluric_standard(self, path):
@@ -154,7 +154,7 @@ class SequenceCommandMap(BaseCommandMap):
 
     def __unknown(self, paths):
         logger.warning('Unrecognized DPRTYPE, skipping sequence %s',
-                       ' '.join([path.preprocessed_filename() for path in paths]))
+                       ' '.join([path.preprocessed.filename for path in paths]))
         return None
 
     def __dark(self, paths):
@@ -177,7 +177,7 @@ class SequenceCommandMap(BaseCommandMap):
             self.set_cached_sequence(paths, FLAT_QUEUE_KEY)
             # Generate bad pixel mask using last flat and last dark
             last_flat = paths[-1]
-            night = last_flat.night()
+            night = last_flat.night
             last_dark = self.get_cached_file(night, LAST_DARK_KEY)
             assert last_dark is not None, 'Need a known DARK file for cal_BADPIX'
             self.drs.cal_BADPIX(last_flat, last_dark)
@@ -206,10 +206,10 @@ class SequenceCommandMap(BaseCommandMap):
 
     def __process_cached_fp_queue(self, hc_path):
         if self.steps['calibrations']:
-            fp_paths = self.get_cached_sequence(hc_path.night(), FP_QUEUE_KEY)
+            fp_paths = self.get_cached_sequence(hc_path.night, FP_QUEUE_KEY)
             self.drs.cal_SLIT(fp_paths)
             self.drs.cal_SHAPE(hc_path, fp_paths)
-            self.__process_cached_flat_queue(fp_paths[0].night())  # Can finally flat field once we have the tilt
+            self.__process_cached_flat_queue(fp_paths[0].night)  # Can finally flat field once we have the tilt
             for fp_path in fp_paths:
                 self.drs.cal_extract_RAW(fp_path)
             self.set_cached_sequence([], FP_QUEUE_KEY)
@@ -237,11 +237,11 @@ class SequenceCommandMap(BaseCommandMap):
 
 
 def create_final_product(path):
-    filepath = path.raw_path()
-    s1d_files = OrderedDict((fiber, path.s1d_path(fiber)) for fiber in FIBER_LIST)
-    e2ds_files = OrderedDict((fiber, path.e2ds_path(fiber)) for fiber in FIBER_LIST)
-    combined_file_1d = path.final_product_path('s')
-    combined_file_2d = path.final_product_path('e')
+    filepath = path.raw.fullpath
+    s1d_files = OrderedDict((fiber, path.s1d(fiber).fullpath) for fiber in FIBER_LIST)
+    e2ds_files = OrderedDict((fiber, path.e2ds(fiber).fullpath) for fiber in FIBER_LIST)
+    combined_file_1d = path.final_product('s').fullpath
+    combined_file_2d = path.final_product('e').fullpath
     create_mef(filepath, s1d_files, combined_file_1d)
     create_mef(filepath, e2ds_files, combined_file_2d)
 

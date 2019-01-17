@@ -20,7 +20,7 @@ class DrsTrigger:
     def reduce_night(self, night):
         if self.do_realtime:
             raise RuntimeError('Realtime mode not meant for reducing entire night!')
-        path_pattern = PathHandler(night, '*.fits').raw_path()
+        path_pattern = PathHandler(night, '*.fits').raw.fullpath
         all_files = [file for file in glob.glob(path_pattern) if os.path.exists(file)]  # filter out broken symlinks
         files = sort_and_filter_files(all_files, self.types)  # We can filter out unused input files ahead of time
         self.reduce(night, files)
@@ -40,23 +40,23 @@ class DrsTrigger:
         try:
             self.command_map.preprocess_exposure(path)
         except Exception as e:
-            raise RuntimeError('Error running pre-processing on', path.raw_path(), e)
+            raise RuntimeError('Error running pre-processing on', path.raw.fullpath, e)
 
     def process_file(self, night, file):
         self.preprocess(night, file)
         path = PathHandler(night, file)
-        exposure_config = self.__exposure_config_from_file(path.preprocessed_path())
+        exposure_config = self.__exposure_config_from_file(path.preprocessed.fullpath)
         try:
             result = self.command_map.process_exposure(exposure_config, path, self.ccf_mask)
             return result
         except Exception as e:
-            raise RuntimeError('Error extracting', path.preprocessed_path(), e)
+            raise RuntimeError('Error extracting', path.preprocessed.fullpath, e)
 
     def process_sequence(self, night, files):
         paths = [PathHandler(night, file) for file in files]
-        sequence_config = self.__exposure_config_from_file(paths[0].preprocessed_path())
+        sequence_config = self.__exposure_config_from_file(paths[0].preprocessed.fullpath)
         for path in paths:
-            exposure_config = self.__exposure_config_from_file(path.preprocessed_path())
+            exposure_config = self.__exposure_config_from_file(path.preprocessed.fullpath)
             assert exposure_config == sequence_config, 'Exposure type changed mid-sequence'
         try:
             result = self.command_map.process_sequence(sequence_config, paths)
@@ -82,8 +82,8 @@ class DrsTrigger:
 #            else:
 #                path_init = PathHandler(night, current_sequence[0])
 #                path_last = PathHandler(night, file)
-#                sequence_config = DrsTrigger.__exposure_config_from_file(path_init.preprocessed_path())
-#                exposure_config = DrsTrigger.__exposure_config_from_file(path_last.preprocessed_path())
+#                sequence_config = DrsTrigger.__exposure_config_from_file(path_init.preprocessed.fullpath)
+#                exposure_config = DrsTrigger.__exposure_config_from_file(path_init.preprocessed.fullpath)
 #                if sequence_config != exposure_config:
 #                    logger.error('Exposure type changed mid-sequence, throwing away previous sequence: %s')
 #                    current_sequence.clear()
