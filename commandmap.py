@@ -80,20 +80,11 @@ class BaseCommandMap(object):
 
 class ExposureCommandMap(BaseCommandMap):
     def __init__(self, steps, trace, realtime=False, ccf_mask=None):
-        commands = defaultdict(lambda: self.__unknown, {
-            'DARK_DARK': self.__do_nothing,
-            'DARK_FLAT': self.__do_nothing,
-            'FLAT_DARK': self.__do_nothing,
-            'FLAT_FLAT': self.__do_nothing,
-            'FP_FP': self.__do_nothing,
-            'HCONE_HCONE': self.__do_nothing,
-            'DARK_HCONE': self.__do_nothing,
-            'HCONE_DARK': self.__do_nothing,
+        commands = defaultdict(lambda: self.__do_nothing, {
             'SPEC_OBJ': self.__extract_and_apply_telluric_correction,
             'POL_OBJ': self.__extract_and_apply_telluric_correction,
             'SPEC_TELL': self.__extract_telluric_standard,
             'POL_TELL': self.__extract_telluric_standard,
-            'OBJ_FP': self.__extract_object,
         })
         super().__init__(commands, steps, trace, realtime)
         self.ccf_mask = ccf_mask
@@ -252,7 +243,7 @@ class SequenceCommandMap(BaseCommandMap):
 def create_final_product(path):
     filepath = path.raw.fullpath
     s1d_files = OrderedDict((fiber, path.s1d(fiber).fullpath) for fiber in FIBER_LIST)
-    e2ds_files = OrderedDict((fiber, path.e2ds(fiber).fullpath) for fiber in FIBER_LIST)
+    e2ds_files = OrderedDict((fiber, path.e2ds(fiber, flat_fielded=True).fullpath) for fiber in FIBER_LIST)
     combined_file_1d = path.final_product('s').fullpath
     combined_file_2d = path.final_product('e').fullpath
     create_mef(filepath, s1d_files, combined_file_1d)

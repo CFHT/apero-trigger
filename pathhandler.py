@@ -41,8 +41,8 @@ class PathHandler(object):
         suffix = 'tellu_corrected' if telluric_corrected else None
         return self.extracted_product(product_name, fiber, suffix)
 
-    def ccf(self, fiber, mask, telluric_corrected=False):
-        product_name = 'ccf_' + mask.replace('.mas', '')
+    def ccf(self, fiber, mask, fp=True, telluric_corrected=False):
+        product_name = 'ccf_' + ('fp_' if fp else '') + mask.replace('.mas', '')
         suffix = 'tellu_corrected' if telluric_corrected else None
         return self.extracted_product(product_name, fiber, suffix)
 

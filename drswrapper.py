@@ -75,19 +75,18 @@ class DRS:
         return self.__logwrapper(cal_WAVE_E2DS_EA_spirou, hc_path.night, fp_file, [hc_file])
 
     def cal_CCF_E2DS(self, path, mask, telluric_corrected):
-        filename = path.e2ds('AB', telluric_corrected).filename
-        self.__logwrapper(cal_CCF_E2DS_FP_spirou, path.night, filename, mask, 0, 100, 1)
-        return self.__logwrapper(cal_CCF_E2DS_spirou, path.night, filename, mask, 0, 100, 1)
+        filename = path.e2ds('AB', telluric_corrected, flat_fielded=True).filename
+        return self.__logwrapper(cal_CCF_E2DS_FP_spirou, path.night, filename, mask, 0, 100, 1)
 
     def pol(self, paths):
         input_files = [path.e2ds(fiber).filename for path in paths for fiber in ('A', 'B')]
         return self.__logwrapper(pol_spirou, paths[0].night, input_files)
 
     def obj_mk_tellu(self, path):
-        return self.__logwrapper(obj_mk_tellu, path.night, [path.e2ds('AB').filename])
+        return self.__logwrapper(obj_mk_tellu, path.night, [path.e2ds('AB', flat_fielded=True).filename])
 
     def obj_fit_tellu(self, path):
-        return self.__logwrapper(obj_fit_tellu, path.night, [path.e2ds('AB').filename])
+        return self.__logwrapper(obj_fit_tellu, path.night, [path.e2ds('AB', flat_fielded=True).filename])
 
     @staticmethod
     def version():
