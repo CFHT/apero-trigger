@@ -10,8 +10,11 @@ def run_listener(port):
     @app.route('/trigger', methods=['POST'])
     def realtime_trigger():
         filename = request.args.get('filename')
-        realtime(filename)
-        return '{"success": true}', 200
+        try:
+            realtime(filename)
+            return '{"success": true}', 200
+        except Exception as error:
+            return '{"success": false}', 500
 
     app.base_url = 'http://localhost:' + port
     cherrypy.tree.graft(app.wsgi_app, '/')

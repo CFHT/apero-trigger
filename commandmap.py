@@ -120,23 +120,30 @@ class ExposureCommandMap(BaseCommandMap):
         telluric_corrected = False
         try:
             if self.steps['fittellu']:
-                self.drs.obj_fit_tellu(path)
-                telluric_corrected = True
+                temp = self.drs.obj_fit_tellu(path)
+                if temp is not None:
+                    telluric_corrected = True
         finally:
             if self.steps['ccf']:
                 self.drs.cal_CCF_E2DS(path, self.ccf_mask, telluric_corrected=telluric_corrected)
         if self.realtime:
-            db_headers = {'obsid': path.raw.filename.replace('o.fits', '')}
-            db_headers.update(get_product_headers(path.e2ds('AB').fullpath))
-            db_headers.update(get_ccf_headers(path.ccf('AB', self.ccf_mask, telluric_corrected).fullpath))
-            send_headers_to_db(db_headers)
+            ccf_path = path.ccf('AB', self.ccf_mask, telluric_corrected=telluric_corrected).fullpath
+            self.__update_db_with_headers(path, ccf_path)
 
     def __extract_telluric_standard(self, path):
         if self.steps['objects']:
             self.__extract_object(path)
         if self.steps['mktellu']:
             self.drs.obj_mk_tellu(path)
+        if self.realtime:
+            self.__update_db_with_headers(path)
 
+    def __update_db_with_headers(self, path, ccf_fullpath=None):
+        db_headers = {'obsid': path.raw.filename.replace('o.fits', '')}
+        db_headers.update(get_product_headers(path.e2ds('AB').fullpath))
+        if ccf_fullpath:
+            db_headers.update(get_ccf_headers(ccf_fullpath))
+        send_headers_to_db(db_headers)
 
 class SequenceCommandMap(BaseCommandMap):
     def __init__(self, steps, trace, realtime=False):
@@ -147,6 +154,8 @@ class SequenceCommandMap(BaseCommandMap):
             'FLAT_FLAT': self.__flat,
             'FP_FP': self.__fabry_perot,
             'HCONE_HCONE': self.__hc_one,
+            'SPEC_OBJ': self.__do_nothing,
+            'SPEC_TELL': self.__do_nothing,
             'POL_OBJ': self.__polar,
             'POL_TELL': self.__polar,
         })
@@ -155,6 +164,9 @@ class SequenceCommandMap(BaseCommandMap):
     def __unknown(self, paths):
         logger.warning('Unrecognized DPRTYPE, skipping sequence %s',
                        ' '.join([path.preprocessed.filename for path in paths]))
+        return None
+
+    def __do_nothing(self, path):
         return None
 
     def __dark(self, paths):
@@ -207,22 +219,23 @@ class SequenceCommandMap(BaseCommandMap):
     def __process_cached_fp_queue(self, hc_path):
         if self.steps['calibrations']:
             fp_paths = self.get_cached_sequence(hc_path.night, FP_QUEUE_KEY)
-            self.drs.cal_SLIT(fp_paths)
-            self.drs.cal_SHAPE(hc_path, fp_paths)
-            self.__process_cached_flat_queue(fp_paths[0].night)  # Can finally flat field once we have the tilt
-            for fp_path in fp_paths:
-                self.drs.cal_extract_RAW(fp_path)
-            self.set_cached_sequence([], FP_QUEUE_KEY)
+            if fp_paths:
+                self.drs.cal_SLIT(fp_paths)
+                self.drs.cal_SHAPE(hc_path, fp_paths)
+                self.__process_cached_flat_queue(fp_paths[0].night)  # Can finally flat field once we have the tilt
+                for fp_path in fp_paths:
+                    self.drs.cal_extract_RAW(fp_path)
+                self.set_cached_sequence([], FP_QUEUE_KEY)
             return fp_paths
 
     def __hc_one(self, paths):
         if self.steps['calibrations']:
-            assert len(paths) == 1, 'Too many HCONE_HCONE files'
             hc_path = paths[0]
             fp_paths = self.__process_cached_fp_queue(hc_path)
-            last_fp = fp_paths[-1]
-            self.drs.cal_extract_RAW(hc_path)
-            self.__wave(hc_path, last_fp)
+            if fp_paths:
+                last_fp = fp_paths[-1]
+                self.drs.cal_extract_RAW(hc_path)
+                self.__wave(hc_path, last_fp)
 
     def __wave(self, hc_path, fp_path):
         if self.steps['calibrations']:
