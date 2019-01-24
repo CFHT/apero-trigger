@@ -114,9 +114,11 @@ class ExposureCommandMap(BaseCommandMap):
                 temp = self.drs.obj_fit_tellu(path)
                 if temp is not None:
                     telluric_corrected = True
+                    create_tell_product(path)
         finally:
             if self.steps['ccf']:
                 self.drs.cal_CCF_E2DS(path, self.ccf_mask, telluric_corrected=telluric_corrected)
+                create_ccf_product(path, self.ccf_mask, telluric_corrected=telluric_corrected)
         if self.realtime:
             ccf_path = path.ccf('AB', self.ccf_mask, telluric_corrected=telluric_corrected).fullpath
             self.__update_db_with_headers(path, ccf_path)
@@ -237,7 +239,8 @@ class SequenceCommandMap(BaseCommandMap):
 
     def __polar(self, paths):
         if self.steps['pol']:
-            return self.drs.pol(paths)
+            self.drs.pol(paths)
+            create_pol_product(paths[0])
 
 
 def create_final_product(path):
@@ -248,6 +251,34 @@ def create_final_product(path):
     combined_file_2d = path.final_product('e').fullpath
     create_mef(filepath, s1d_files, combined_file_1d)
     create_mef(filepath, e2ds_files, combined_file_2d)
+
+
+def create_pol_product(path):
+    filepath = path.raw.fullpath
+    input_files = OrderedDict((
+        ('StokesI', path.reduced('e2ds_AB_StokesI').fullpath),
+        ('pol', path.reduced('e2ds_pol').fullpath),
+        ('null1', path.reduced('e2ds_null1_pol').fullpath),
+        ('null2', path.reduced('e2ds_null2_pol').fullpath)
+    ))
+    combined_file_pol = path.final_product('p').fullpath
+    create_mef(filepath, input_files, combined_file_pol)
+
+
+def create_tell_product(path):
+    tell_path = path.e2ds('AB', telluric_corrected=True, flat_fielded=True).fullpath
+    copy_fits(tell_path, path.final_product('t').fullpath)
+
+
+def create_ccf_product(path, ccf_mask, telluric_corrected):
+    ccf_path = path.ccf('AB', ccf_mask, telluric_corrected=telluric_corrected).fullpath
+    copy_fits(ccf_path, path.final_product('v').fullpath)
+
+
+def copy_fits(input_file, output_file):
+    logger.info('Creating FITS %s', output_file)
+    temp = fits.open(input_file)
+    temp.writeto(output_file, overwrite=True)
 
 
 def create_mef(primary_header_file, extension_files, output_file):
