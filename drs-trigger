@@ -44,6 +44,8 @@ if __name__ == '__main__':
     steps_parse.add_argument('--mktellu', action='store_true')
     steps_parse.add_argument('--fittellu', action='store_true')
     steps_parse.add_argument('--ccf', action='store_true')
+    steps_parse.add_argument('--products', action='store_true')
+    steps_parse.add_argument('--distribute', action='store_true')
     # TODO - support for:
     # - different limiters
     #   - night
@@ -72,7 +74,8 @@ if __name__ == '__main__':
         elif args.command == 'steps':
             trigger = DrsTrigger(trace=args.trace, ccf_mask=args.ccfmask, preprocess=args.preprocess,
                                  calibrations=args.calibrations, objects=args.objects, pol=args.pol,
-                                 mktellu=args.mktellu, fittellu=args.fittellu, ccf=args.ccf)
+                                 mktellu=args.mktellu, fittellu=args.fittellu, ccf=args.ccf, products=args.products,
+                                 distribute=args.distribute)
             trigger.reduce_night(args.night)
         else:
             trigger = DrsTrigger(trace=args.trace, ccf_mask=args.ccfmask, preprocess=args.preprocess)

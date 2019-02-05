@@ -21,7 +21,9 @@ def is_desired_type(file, types):
             types['mktellu'] and has_object_extension(file) and is_telluric_standard(fits.open(file)[0].header) or
             types['fittellu'] and has_object_extension(file) and not is_telluric_standard(fits.open(file)[0].header) or
             # TODO: handle skipping sky exposures when command map is updated to do so
-            types['ccf'] and has_object_extension(file) and not is_telluric_standard(fits.open(file)[0].header))
+            types['ccf'] and has_object_extension(file) and not is_telluric_standard(fits.open(file)[0].header) or
+            types['products'] and has_object_extension(file) or
+            types['distribute'] and has_object_extension(file))
 
 
 def has_object_extension(file):

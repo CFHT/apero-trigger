@@ -1,4 +1,7 @@
+import os
+import pathlib
 import pickle
+import shutil
 from collections import defaultdict, OrderedDict
 
 from astropy.io import fits
@@ -47,6 +50,7 @@ class BaseCommandMap(object):
         self.trace = trace
         self.realtime = realtime
         self.drs = DRS(trace, realtime)
+        self.bundler = ProductBundler(trace, realtime, steps['products'], steps['distribute'])
 
     def __save_cache(self):
         try:
@@ -99,14 +103,12 @@ class ExposureCommandMap(BaseCommandMap):
         return None
 
     def __extract_object(self, path):
-        result = self.drs.cal_extract_RAW(path)
-        if not self.trace:
-            create_final_product(path)
-        return result
+        if self.steps['objects']:
+            self.drs.cal_extract_RAW(path)
+        self.bundler.create_spec_product(path)
 
     def __extract_and_apply_telluric_correction(self, path):
-        if self.steps['objects']:
-            self.__extract_object(path)
+        self.__extract_object(path)
         # TODO - skip telluric correction on sky exposures
         telluric_corrected = False
         try:
@@ -114,18 +116,19 @@ class ExposureCommandMap(BaseCommandMap):
                 temp = self.drs.obj_fit_tellu(path)
                 if temp is not None:
                     telluric_corrected = True
-                    create_tell_product(path)
+            else:
+                telluric_corrected = True
+            self.bundler.create_tell_product(path)
         finally:
             if self.steps['ccf']:
                 self.drs.cal_CCF_E2DS(path, self.ccf_mask, telluric_corrected=telluric_corrected)
-                create_ccf_product(path, self.ccf_mask, telluric_corrected=telluric_corrected)
+            self.bundler.create_ccf_product(path, self.ccf_mask, telluric_corrected=telluric_corrected)
         if self.realtime:
             ccf_path = path.ccf('AB', self.ccf_mask, telluric_corrected=telluric_corrected).fullpath
             self.__update_db_with_headers(path, ccf_path)
 
     def __extract_telluric_standard(self, path):
-        if self.steps['objects']:
-            self.__extract_object(path)
+        self.__extract_object(path)
         if self.steps['mktellu']:
             self.drs.obj_mk_tellu(path)
         if self.realtime:
@@ -240,56 +243,85 @@ class SequenceCommandMap(BaseCommandMap):
     def __polar(self, paths):
         if self.steps['pol']:
             self.drs.pol(paths)
-            create_pol_product(paths[0])
+        self.bundler.create_pol_product(paths[0])
 
 
-def create_final_product(path):
-    filepath = path.raw.fullpath
-    s1d_files = OrderedDict((fiber, path.s1d(fiber).fullpath) for fiber in FIBER_LIST)
-    e2ds_files = OrderedDict((fiber, path.e2ds(fiber, flat_fielded=True).fullpath) for fiber in FIBER_LIST)
-    combined_file_1d = path.final_product('s').fullpath
-    combined_file_2d = path.final_product('e').fullpath
-    create_mef(filepath, s1d_files, combined_file_1d)
-    create_mef(filepath, e2ds_files, combined_file_2d)
+class ProductBundler:
+    def __init__(self, trace, realtime, create, distribute):
+        self.trace = trace
+        self.realtime = realtime
+        self.create = create or realtime
+        self.distribute = distribute or realtime
 
+    def create_spec_product(self, path):
+        filepath = path.raw.fullpath
+        s1d_files = OrderedDict((fiber, path.s1d(fiber).fullpath) for fiber in FIBER_LIST)
+        e2ds_files = OrderedDict((fiber, path.e2ds(fiber, flat_fielded=True).fullpath) for fiber in FIBER_LIST)
+        product_1d = path.final_product('s').fullpath
+        product_2d = path.final_product('e').fullpath
+        self.create_mef(filepath, s1d_files, product_1d)
+        self.create_mef(filepath, e2ds_files, product_2d)
+        self.distribute_file(product_1d)
+        self.distribute_file(product_2d)
 
-def create_pol_product(path):
-    filepath = path.raw.fullpath
-    input_files = OrderedDict((
-        ('StokesI', path.reduced('e2ds_AB_StokesI').fullpath),
-        ('pol', path.reduced('e2ds_pol').fullpath),
-        ('null1', path.reduced('e2ds_null1_pol').fullpath),
-        ('null2', path.reduced('e2ds_null2_pol').fullpath)
-    ))
-    combined_file_pol = path.final_product('p').fullpath
-    create_mef(filepath, input_files, combined_file_pol)
+    def create_pol_product(self, path):
+        filepath = path.raw.fullpath
+        input_files = OrderedDict((
+            ('StokesI', path.reduced('e2ds_AB_StokesI').fullpath),
+            ('pol', path.reduced('e2ds_pol').fullpath),
+            ('null1', path.reduced('e2ds_null1_pol').fullpath),
+            ('null2', path.reduced('e2ds_null2_pol').fullpath)
+        ))
+        product_pol = path.final_product('p').fullpath
+        self.create_mef(filepath, input_files, product_pol)
+        self.distribute_file(product_pol)
 
+    def create_tell_product(self, path):
+        tell_path = path.e2ds('AB', telluric_corrected=True, flat_fielded=True).fullpath
+        product_tell = path.final_product('t').fullpath
+        self.copy_fits(tell_path, product_tell)
+        self.distribute_file(product_tell)
 
-def create_tell_product(path):
-    tell_path = path.e2ds('AB', telluric_corrected=True, flat_fielded=True).fullpath
-    copy_fits(tell_path, path.final_product('t').fullpath)
+    def create_ccf_product(self, path, ccf_mask, telluric_corrected):
+        ccf_path = path.ccf('AB', ccf_mask, telluric_corrected=telluric_corrected).fullpath
+        product_ccf = path.final_product('v').fullpath
+        self.copy_fits(ccf_path, product_ccf)
+        self.distribute_file(product_ccf)
 
+    def copy_fits(self, input_file, output_file):
+        if not self.create:
+            return
+        logger.info('Creating FITS %s', output_file)
+        if self.trace:
+            return
+        temp = fits.open(input_file)
+        temp.writeto(output_file, overwrite=True)
 
-def create_ccf_product(path, ccf_mask, telluric_corrected):
-    ccf_path = path.ccf('AB', ccf_mask, telluric_corrected=telluric_corrected).fullpath
-    copy_fits(ccf_path, path.final_product('v').fullpath)
+    def create_mef(self, primary_header_file, extension_files, output_file):
+        if not self.create:
+            return
+        logger.info('Creating MEF %s', output_file)
+        if self.trace:
+            return
+        primary = fits.open(primary_header_file)[0]
+        mef = fits.HDUList(primary)
+        for ext_name, ext_file in extension_files.items():
+            ext = fits.open(ext_file)[0]
+            ext.header.insert(0, ('EXTNAME', ext_name))
+            mef.append(ext)
+        mef.writeto(output_file, overwrite=True)
 
-
-def copy_fits(input_file, output_file):
-    logger.info('Creating FITS %s', output_file)
-    temp = fits.open(input_file)
-    temp.writeto(output_file, overwrite=True)
-
-
-def create_mef(primary_header_file, extension_files, output_file):
-    logger.info('Creating MEF %s', output_file)
-    primary = fits.open(primary_header_file)[0]
-    mef = fits.HDUList(primary)
-    for ext_name, ext_file in extension_files.items():
-        ext = fits.open(ext_file)[0]
-        ext.header.insert(0, ('EXTNAME', ext_name))
-        mef.append(ext)
-    mef.writeto(output_file, overwrite=True)
+    def distribute_file(self, file):
+        if self.trace or not self.distribute:
+            return
+        hdu = fits.open(file)[0]
+        run_id = hdu.header['RUNID']
+        dist_root = '/data/distribution/spirou/'
+        subdir = 'quicklook' if self.realtime else 'reduced'
+        dist_dir = os.path.join(dist_root, run_id.lower(), subdir)
+        pathlib.Path(dist_dir).mkdir(parents=True, exist_ok=True)
+        new_file = shutil.copy2(file, dist_dir)
+        logger.info('Distributing %s', new_file)
 
 
 def get_product_headers(input_file):

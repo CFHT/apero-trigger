@@ -15,7 +15,7 @@ class DrsTrigger:
         self.do_realtime = realtime
         self.ccf_mask = ccf_mask
         self.types = defaultdict(lambda: True, types)
-        self.command_map = CommandMap(self.types, trace,  realtime)
+        self.command_map = CommandMap(self.types, trace, realtime)
 
     def reduce_night(self, night):
         if self.do_realtime:
