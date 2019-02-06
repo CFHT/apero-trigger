@@ -259,7 +259,7 @@ class ProductBundler:
         e2ds_files = OrderedDict((fiber, path.e2ds(fiber, flat_fielded=True).fullpath) for fiber in FIBER_LIST)
         product_1d = path.final_product('s').fullpath
         product_2d = path.final_product('e').fullpath
-        self.create_mef(filepath, s1d_files, product_1d)
+        self.create_mef(filepath, s1d_files, product_1d, column_names='Flux')
         self.create_mef(filepath, e2ds_files, product_2d)
         self.distribute_file(product_1d)
         self.distribute_file(product_2d)
@@ -285,19 +285,29 @@ class ProductBundler:
     def create_ccf_product(self, path, ccf_mask, telluric_corrected):
         ccf_path = path.ccf('AB', ccf_mask, telluric_corrected=telluric_corrected).fullpath
         product_ccf = path.final_product('v').fullpath
-        self.copy_fits(ccf_path, product_ccf)
+        column_names = ['Order' + str(i) for i in range(1, 50)] + ['Combined']
+        self.copy_fits(ccf_path, product_ccf, column_names, wcs_cleanup=True)
         self.distribute_file(product_ccf)
 
-    def copy_fits(self, input_file, output_file):
+    def copy_fits(self, input_file, output_file, column_names=None, wcs_cleanup=False):
         if not self.create:
             return
         logger.info('Creating FITS %s', output_file)
         if self.trace:
             return
-        temp = fits.open(input_file)
-        temp.writeto(output_file, overwrite=True)
+        source = fits.open(input_file)
+        if column_names is None:
+            target = source
+        else:
+            primary_hdu = fits.PrimaryHDU(header=source[0].header)
+            if wcs_cleanup:
+                for key in ('CRVAL1', 'CRVAL2', 'CDELT1', 'CDELT2', 'CTYPE1', 'CTYPE2'):
+                    primary_hdu.header.remove(key)
+            bin_table_hdu = self.convert_image_to_binary_table(fits.ImageHDU(data=source[0].data), column_names)
+            target = fits.HDUList([primary_hdu, bin_table_hdu])
+        target.writeto(output_file, overwrite=True)
 
-    def create_mef(self, primary_header_file, extension_files, output_file):
+    def create_mef(self, primary_header_file, extension_files, output_file, column_names=None):
         if not self.create:
             return
         logger.info('Creating MEF %s', output_file)
@@ -306,9 +316,13 @@ class ProductBundler:
         primary = fits.open(primary_header_file)[0]
         mef = fits.HDUList(primary)
         for ext_name, ext_file in extension_files.items():
-            ext = fits.open(ext_file)[0]
-            ext.header.insert(0, ('EXTNAME', ext_name))
-            mef.append(ext)
+            source_hdu = fits.open(ext_file)[0]
+            source_hdu.header.insert(0, ('EXTNAME', ext_name))
+            if column_names is None:
+                mef.append(source_hdu)
+            else:
+                bin_table_hdu = self.convert_image_to_binary_table(source_hdu, column_names)
+                mef.append(bin_table_hdu)
         mef.writeto(output_file, overwrite=True)
 
     def distribute_file(self, file):
@@ -322,6 +336,21 @@ class ProductBundler:
         pathlib.Path(dist_dir).mkdir(parents=True, exist_ok=True)
         new_file = shutil.copy2(file, dist_dir)
         logger.info('Distributing %s', new_file)
+
+    @staticmethod
+    def convert_image_to_binary_table(image_hdu, column_names, transpose=False):
+        data = image_hdu.data if not transpose else image_hdu.data.T
+        if image_hdu.header['NAXIS'] == 1:
+            name = column_names if isinstance(column_names, str) else column_names[0]
+            columns = [fits.Column(name=name, format='D', array=data)]
+        else:
+            assert len(column_names) == len(image_hdu.data)
+            columns = [fits.Column(name=name, format='D', array=column) for name, column in zip(column_names, data)]
+        header = image_hdu.header.copy()
+        if 'BUNIT' in header:
+            header.insert('BUNIT', ('TUNIT', header['BUNIT']))
+            header.remove('BUNIT')
+        return fits.BinTableHDU.from_columns(columns, header=header)
 
 
 def get_product_headers(input_file):
