@@ -1,8 +1,18 @@
 import datetime
+from os import path
+
 from astropy.io import fits
 from logger import logger
+from envconfig import drs_root
 
-TELLURIC_STANDARD_PROGRAMS = ['18AE96', '18BE93']
+
+def read_telluric_whitelist():
+    whitelist_file = path.join(drs_root, 'SpirouDRS/data/constants/tellu_whitelist.txt')
+    with open(whitelist_file) as f:
+        return set(line for line in f.read().splitlines() if not (line.startswith('#') or line == ''))
+
+
+TELLURIC_STANDARDS = read_telluric_whitelist()
 
 
 def sort_and_filter_files(files, types):
@@ -43,9 +53,12 @@ def is_spectroscopy(header):
 
 
 def is_telluric_standard(header):
-    if 'RUNID' not in header:
-        raise RuntimeError('Object file missing RUNID keyword')
-    return header['RUNID'] in TELLURIC_STANDARD_PROGRAMS
+    name_keyword = 'OBJECT'
+    if name_keyword not in header:
+        name_keyword = 'OBJNAME'
+        if name_keyword not in header:
+            raise RuntimeError('Object file missing OBJECT and OBJNAME keywords')
+    return header[name_keyword] in TELLURIC_STANDARDS
 
 
 def sort_files_by_date_header(files):
