@@ -7,6 +7,10 @@ from realtime import realtime
 def run_listener(port):
     app = Flask('realtime-server')
 
+    @app.route('/_status', methods=['GET'])
+    def status_check():
+        return '{"success": true}', 200
+
     @app.route('/trigger', methods=['POST'])
     def realtime_trigger():
         filename = request.args.get('filename')
