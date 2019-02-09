@@ -31,6 +31,12 @@ def flatten(items):
             yield x
 
 
+class QCFailure(Exception):
+    def __init__(self, errors):
+        super().__init__('QC failure: ' + ', '.join(errors))
+        self.errors = errors
+
+
 class DRS:
     def __init__(self, trace=False, realtime=False):
         self.trace = trace
@@ -98,11 +104,19 @@ class DRS:
         if not self.trace:
             sys.argv = [sys.argv[0]]  # Wipe out argv so DRS doesn't rely on CLI arguments instead of what is passed in
             try:
-                return module.main(night, *args)
+                locals = module.main(night, *args)
+                qc_failures = locals.get('fail_msg')
+                if qc_failures:
+                    raise QCFailure(qc_failures)
+                return True
             except SystemExit:
                 logger.error('DRS recipe failed with a system exit: %s', command_string)
                 if self.realtime:
                     director_message('DRS command failed (exit): ' + command_string, level='warning')
+            except QCFailure:
+                logger.error('QC failed for DRS recipe: %s', command_string)
+                if self.realtime:
+                    director_message('DRS QC failed for command: ' + command_string, level='warning')
             except Exception as error:
                 logger.error('DRS recipe failed with uncaught exception: %s', command_string, exc_info=True)
                 if self.realtime:
