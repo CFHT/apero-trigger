@@ -15,22 +15,36 @@ class LogFormatter(logging.Formatter):
         self._style._fmt = original_format
         return result
 
-def configure(console_level='INFO', file=None, file_level='INFO'):
+
+class LogFile:
+    def __init__(self, file, level):
+        self.file = file
+        self.level = level
+
+    def toHandler(self, formatter):
+        try:
+            file_handler = logging.FileHandler(self.file)
+        except:
+            logger.error('Could not open log file %s', self.file)
+        else:
+            file_handler.setFormatter(formatter)
+            file_handler.setLevel(logging.getLevelName(self.level))
+            return file_handler
+
+
+def configure(console_level='INFO', log_files=None):
     formatter = LogFormatter()
     console_handler = logging.StreamHandler(sys.stdout)
     console_handler.setFormatter(formatter)
     console_handler.setLevel(logging.getLevelName(console_level))
     logger.addHandler(console_handler)
-    if file is not None:
-        try:
-            file_handler = logging.FileHandler(file)
-        except:
-            logger.error('Could not open log file %s', file)
-        else:
-            file_handler.setFormatter(formatter)
-            file_handler.setLevel(logging.getLevelName(file_level))
-            logger.addHandler(file_handler)
+    if log_files:
+        for log_file in log_files:
+            file_handler = log_file.toHandler(formatter)
+            if file_handler:
+                logger.addHandler(file_handler)
     logger.setLevel(logging.DEBUG)
+
 
 def director_message(message, level=None):
     if level:
