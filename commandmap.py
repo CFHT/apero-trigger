@@ -226,12 +226,12 @@ class SequenceCommandMap(BaseCommandMap):
 
     def __hc_one(self, paths):
         if self.steps['calibrations']:
-            hc_path = paths[0]
-            fp_paths = self.__process_cached_fp_queue(hc_path)
+            last_hc = paths[-1]
+            fp_paths = self.__process_cached_fp_queue(last_hc)
             if fp_paths:
                 last_fp = fp_paths[-1]
-                self.drs.cal_extract_RAW(hc_path)
-                self.__wave(hc_path, last_fp)
+                self.drs.cal_extract_RAW(last_hc)
+                self.__wave(last_hc, last_fp)
 
     def __wave(self, hc_path, fp_path):
         if self.steps['calibrations']:
