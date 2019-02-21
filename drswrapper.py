@@ -105,8 +105,9 @@ class DRS:
             sys.argv = [sys.argv[0]]  # Wipe out argv so DRS doesn't rely on CLI arguments instead of what is passed in
             try:
                 locals = module.main(night, *args)
+                qc_passed = locals.get('passed')
                 qc_failures = locals.get('fail_msg')
-                if qc_failures:
+                if qc_failures and not qc_passed:
                     raise QCFailure(qc_failures)
                 return True
             except SystemExit:
