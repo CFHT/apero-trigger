@@ -1,5 +1,6 @@
 import os, pickle
 
+from distribution import distribute_file
 from envconfig import sessiondir, set_drs_config_subdir
 set_drs_config_subdir('realtime')
 
@@ -13,6 +14,7 @@ SEQUENCE_CACHE_FILE = '.sequence.cache'
 def realtime(rawpath):
     try:
         night, file = setup_symlink(rawpath)
+        distribute_file(file, 'raw')
         trigger = DrsTrigger(realtime=True)
         trigger.preprocess(night, file)
         trigger.process_file(night, file)

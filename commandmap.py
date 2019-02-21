@@ -1,11 +1,9 @@
-import os
-import pathlib
 import pickle
-import shutil
 from collections import defaultdict, OrderedDict
 
 from astropy.io import fits
 
+from distribution import distribute_file
 from logger import logger
 from drswrapper import DRS
 from pathhandler import PathHandler
@@ -328,13 +326,8 @@ class ProductBundler:
     def distribute_file(self, file):
         if self.trace or not self.distribute:
             return
-        hdu = fits.open(file)[0]
-        run_id = hdu.header['RUNID']
-        dist_root = '/data/distribution/spirou/'
         subdir = 'quicklook' if self.realtime else 'reduced'
-        dist_dir = os.path.join(dist_root, run_id.lower(), subdir)
-        pathlib.Path(dist_dir).mkdir(parents=True, exist_ok=True)
-        new_file = shutil.copy2(file, dist_dir)
+        new_file = distribute_file(file, subdir)
         logger.info('Distributing %s', new_file)
 
     @staticmethod
