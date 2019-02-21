@@ -1,4 +1,4 @@
-#!/data/spirou/venv/bin/python3
+#!/data/spirou/venv/bin/python3 -u
 
 import argparse
 import logger
