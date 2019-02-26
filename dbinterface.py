@@ -15,6 +15,7 @@ except:
 def send_headers_to_db(header_dict):
     if not bearer_token:
         logger.warning('No bearer token loaded, cannot send values to the database')
+        return
     data = json.dumps({
         'bearer_token': bearer_token,
         **header_dict

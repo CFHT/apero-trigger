@@ -121,7 +121,7 @@ class ExposureCommandMap(BaseCommandMap):
             if self.steps['ccf']:
                 self.drs.cal_CCF_E2DS(path, self.ccf_mask, telluric_corrected=telluric_corrected)
             self.bundler.create_ccf_product(path, self.ccf_mask, telluric_corrected=telluric_corrected)
-        if self.realtime:
+        if self.realtime or self.steps['database']:
             ccf_path = path.ccf('AB', self.ccf_mask, telluric_corrected=telluric_corrected).fullpath
             self.__update_db_with_headers(path, ccf_path)
 
@@ -129,7 +129,7 @@ class ExposureCommandMap(BaseCommandMap):
         self.__extract_object(path)
         if self.steps['mktellu']:
             self.drs.obj_mk_tellu(path)
-        if self.realtime:
+        if self.realtime or self.steps['database']:
             self.__update_db_with_headers(path)
 
     def __update_db_with_headers(self, path, ccf_fullpath=None):

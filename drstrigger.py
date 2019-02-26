@@ -17,12 +17,12 @@ class DrsTrigger:
         self.types = defaultdict(lambda: True, types)
         self.command_map = CommandMap(self.types, trace, realtime)
 
-    def reduce_night(self, night):
+    def reduce_night(self, night, runid=None):
         if self.do_realtime:
             raise RuntimeError('Realtime mode not meant for reducing entire night!')
         path_pattern = PathHandler(night, '*.fits').raw.fullpath
         all_files = [file for file in glob.glob(path_pattern) if os.path.exists(file)]  # filter out broken symlinks
-        files = sort_and_filter_files(all_files, self.types)  # We can filter out unused input files ahead of time
+        files = sort_and_filter_files(all_files, self.types, runid)  # Filter out unused input files ahead of time
         self.reduce(night, files)
 
     def reduce(self, night, files_in_order):

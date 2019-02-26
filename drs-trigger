@@ -31,12 +31,14 @@ if __name__ == '__main__':
                                 help='Skip pre-processing')
     exclude_parser.set_defaults(preprocess=True)
     reduce_all_parser = subparsers.add_parser('night', parents=[exclude_parser], help='Reduce entire night directory')
+    reduce_all_parser.add_argument('--runid')
     reduce_file_parse = subparsers.add_parser('file', parents=[exclude_parser], help='Reduce a single file')
     reduce_file_parse.add_argument('filename')
     reduce_sequence_parse = subparsers.add_parser('sequence', parents=[exclude_parser],
                                                   help='Reduce a sequence of files together')
     reduce_sequence_parse.add_argument('filenames', nargs='+')
     steps_parse = subparsers.add_parser('steps', parents=[reduce_parser], help='Perform specified reduction steps')
+    steps_parse.add_argument('--runid')
     steps_parse.add_argument('--preprocess', '--pp', dest='preprocess', action='store_true')
     steps_parse.add_argument('--calibrations', '--cals', dest='calibrations', action='store_true')
     steps_parse.add_argument('--objects', action='store_true')
@@ -46,6 +48,7 @@ if __name__ == '__main__':
     steps_parse.add_argument('--ccf', action='store_true')
     steps_parse.add_argument('--products', action='store_true')
     steps_parse.add_argument('--distribute', action='store_true')
+    steps_parse.add_argument('--database', '--db', action='store_true')
     # TODO - support for:
     # - different limiters
     #   - night
@@ -84,12 +87,12 @@ if __name__ == '__main__':
             trigger = DrsTrigger(trace=args.trace, ccf_mask=args.ccfmask, preprocess=args.preprocess,
                                  calibrations=args.calibrations, objects=args.objects, pol=args.pol,
                                  mktellu=args.mktellu, fittellu=args.fittellu, ccf=args.ccf, products=args.products,
-                                 distribute=args.distribute)
-            trigger.reduce_night(args.night)
+                                 distribute=args.distribute, database=args.database)
+            trigger.reduce_night(args.night, runid=args.runid)
         else:
             trigger = DrsTrigger(trace=args.trace, ccf_mask=args.ccfmask, preprocess=args.preprocess)
             if args.command == 'night':
-                trigger.reduce_night(args.night)
+                trigger.reduce_night(args.night, runid=args.runid)
             elif args.command == 'file':
                 trigger.process_file(args.night, args.filename)
             elif args.command == 'sequence':

@@ -15,8 +15,8 @@ def read_telluric_whitelist():
 TELLURIC_STANDARDS = read_telluric_whitelist()
 
 
-def sort_and_filter_files(files, types):
-    return sort_files_by_date_header(filter_files_by_type(files, types))
+def sort_and_filter_files(files, types, runid=None):
+    return sort_files_by_date_header(filter_files_by_type(files, types), runid)
 
 
 def filter_files_by_type(files, types):
@@ -33,7 +33,8 @@ def is_desired_type(file, types):
             # TODO: handle skipping sky exposures when command map is updated to do so
             types['ccf'] and has_object_extension(file) and not is_telluric_standard(fits.open(file)[0].header) or
             types['products'] and has_object_extension(file) or
-            types['distribute'] and has_object_extension(file))
+            types['distribute'] and has_object_extension(file) or
+            types['database'] and has_object_extension(file))
 
 
 def has_object_extension(file):
@@ -61,11 +62,15 @@ def is_telluric_standard(header):
     return header[name_keyword] in TELLURIC_STANDARDS
 
 
-def sort_files_by_date_header(files):
+def sort_files_by_date_header(files, runid=None):
     file_times = {}
     for file in files:
         header = fits.open(file)[0].header
-        if 'DATE' not in header:
+        if runid and 'RUNID' not in header:
+            logger.warning('File %s missing RUNID keyword, skipping.', file)
+        elif runid and header['RUNID'] != runid:
+            pass
+        elif 'DATE' not in header:
             logger.warning('File %s missing DATE keyword, skipping.', file)
         else:
             date_string = header['DATE']
