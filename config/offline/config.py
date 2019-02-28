@@ -1,0 +1,10 @@
+DRS_PLOT = 0
+DRS_INTERACTIVE = 0
+TDATA = "/data/spirou/offline/datadir/"
+DRS_ROOT = '/data/spirou/offline/spirou-drs/INTROOT/'
+DRS_DATA_RAW = '/data/spirou2/raw'
+DRS_DATA_REDUC = '/data/spirou1/reduced-offline'
+DRS_CALIB_DB = '/data/spirou/offline/datadir/calibDB'
+DRS_TELLU_DB = '/data/spirou/offline/datadir/telluDB'
+DRS_DATA_MSG = '/data/spirou/offline/datadir/msg'
+DRS_DATA_WORKING = '/data/spirou1/tmp-offline'
