@@ -67,3 +67,11 @@ class PathHandler(object):
     @property
     def reduced_directory(self):
         return os.path.join(reduced_root_directory, self.night)
+
+    @property
+    def obsid(self):
+        return self.raw.filename.replace('.fits', '')
+
+    @property
+    def odometer(self):
+        return int(self.obsid[:-1])

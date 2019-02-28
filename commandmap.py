@@ -7,7 +7,7 @@ from distribution import distribute_file
 from logger import logger
 from drswrapper import DRS
 from pathhandler import PathHandler
-from dbinterface import send_headers_to_db
+from dbinterface import QsoDatabase
 
 CACHE_FILE = '.drstrigger.cache'
 FIBER_LIST = ('AB', 'A', 'B', 'C')
@@ -17,6 +17,7 @@ FP_QUEUE_KEY = 'FP_QUEUE'
 DARK_FLAT_QUEUE_KEY = 'DARK_FLAT_QUEUE'
 FLAT_DARK_QUEUE_KEY = 'FLAT_DARK_QUEUE'
 FLAT_QUEUE_KEY = 'FLAT_QUEUE'
+
 
 class CommandMap:
     def __init__(self, steps, trace, realtime):
@@ -49,6 +50,7 @@ class BaseCommandMap(object):
         self.realtime = realtime
         self.drs = DRS(trace, realtime)
         self.bundler = ProductBundler(trace, realtime, steps['products'], steps['distribute'])
+        self.database = QsoDatabase()
 
     def __save_cache(self):
         try:
@@ -103,6 +105,8 @@ class ExposureCommandMap(BaseCommandMap):
     def __extract_object(self, path):
         if self.steps['objects']:
             self.drs.cal_extract_RAW(path)
+        if self.steps['products']:
+            self.bundler.set_exposure_status(self.database.get_exposure(path.odometer))
         self.bundler.create_spec_product(path)
 
     def __extract_and_apply_telluric_correction(self, path):
@@ -133,11 +137,12 @@ class ExposureCommandMap(BaseCommandMap):
             self.__update_db_with_headers(path)
 
     def __update_db_with_headers(self, path, ccf_fullpath=None):
-        db_headers = {'obsid': path.raw.filename.replace('o.fits', '')}
-        db_headers.update(get_product_headers(path.e2ds('AB').fullpath))
+        db_headers = {'obsid': str(path.odometer)}
+        db_headers.update(get_reduced_headers(path.e2ds('AB').fullpath))
         if ccf_fullpath:
             db_headers.update(get_ccf_headers(ccf_fullpath))
-        send_headers_to_db(db_headers)
+        self.database.send_pipeline_headers(db_headers)
+
 
 class SequenceCommandMap(BaseCommandMap):
     def __init__(self, steps, trace, realtime=False):
@@ -241,6 +246,8 @@ class SequenceCommandMap(BaseCommandMap):
     def __polar(self, paths):
         if self.steps['pol']:
             self.drs.pol(paths)
+        if self.steps['products']:
+            self.bundler.set_sequence_status(self.database.get_exposure_range(paths[0].odometer, paths[-1].odometer))
         self.bundler.create_pol_product(paths[0])
 
 
@@ -250,6 +257,14 @@ class ProductBundler:
         self.realtime = realtime
         self.create = create or realtime
         self.distribute = distribute or realtime
+        self.exposures_status = None
+
+    def set_exposure_status(self, exposure_status):
+        if exposure_status:
+            self.set_sequence_status([exposure_status])
+
+    def set_sequence_status(self, exposures_status):
+        self.exposures_status = exposures_status
 
     def create_spec_product(self, path):
         filepath = path.raw.fullpath
@@ -303,6 +318,7 @@ class ProductBundler:
                     primary_hdu.header.remove(key)
             bin_table_hdu = self.convert_image_to_binary_table(fits.ImageHDU(data=source[0].data), column_names)
             target = fits.HDUList([primary_hdu, bin_table_hdu])
+        set_post_processing_headers(target[0].header, self.exposures_status)
         target.writeto(output_file, overwrite=True)
 
     def create_mef(self, primary_header_file, extension_files, output_file, column_names=None):
@@ -321,6 +337,7 @@ class ProductBundler:
             else:
                 bin_table_hdu = self.convert_image_to_binary_table(source_hdu, column_names)
                 mef.append(bin_table_hdu)
+        set_post_processing_headers(mef[0].header, self.exposures_status)
         mef.writeto(output_file, overwrite=True)
 
     def distribute_file(self, file):
@@ -346,7 +363,7 @@ class ProductBundler:
         return fits.BinTableHDU.from_columns(columns, header=header)
 
 
-def get_product_headers(input_file):
+def get_reduced_headers(input_file):
     header = fits.open(input_file)[0].header
     return {
         'dprtype': header['DPRTYPE'],
@@ -366,3 +383,30 @@ def get_ccf_headers(input_file):
         'ccfrvc': header['CCFRVC'],
         'ccffwhm': header['CCFFWHM1']
     }
+
+
+def set_post_processing_headers(header, exposures_status):
+    add_values_to_header(header, 'QSOVALID', 'QSO validation state', dicts_items(exposures_status, 'exp_status'))
+    add_values_to_header(header, 'QSOGRADE', 'QSO grade (1=good 5=unusable)', dicts_items(exposures_status, 'grade'))
+
+
+def dicts_items(dicts, key):
+    if dicts:
+        return [dictionary.get(key) for dictionary in dicts]
+
+
+def add_values_to_header(header, keyword, comment, values):
+    if not values:
+        key_value_pairs = []
+    elif len(values) == 1:
+        key_value_pairs = [(keyword, values[0])]
+    else:
+        # Note: this can still produce keywords over 8 chars if there are more than 9 values
+        if len(keyword) < 8:
+            key_transform = lambda key, i: key + str(i)
+        else:
+            key_transform = lambda key, i: key[:7] + str(i)
+        key_value_pairs = [(key_transform(keyword, i + 1), value) for i, value in enumerate(values)]
+    for key, value in key_value_pairs:
+        if value is not None:
+            header[key] = (value, comment)
