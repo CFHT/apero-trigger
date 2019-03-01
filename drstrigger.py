@@ -30,6 +30,8 @@ class DrsTrigger:
             raise RuntimeError('Realtime mode not meant for reducing entire fileset!')
         current_sequence = []
         for file in files_in_order:
+            if not self.preprocess(night, file):
+                continue
             self.process_file(night, file)
             completed_sequence = self.sequence_checker(night, current_sequence, file)
             if completed_sequence:
@@ -38,12 +40,11 @@ class DrsTrigger:
     def preprocess(self, night, file):
         path = PathHandler(night, file)
         try:
-            self.command_map.preprocess_exposure(path)
+            return self.command_map.preprocess_exposure(path)
         except Exception as e:
             raise RuntimeError('Error running pre-processing on', path.raw.fullpath, e)
 
     def process_file(self, night, file):
-        self.preprocess(night, file)
         path = PathHandler(night, file)
         exposure_config = self.__exposure_config_from_file(path.preprocessed.fullpath)
         try:
@@ -77,18 +78,13 @@ class DrsTrigger:
             exp_index = header['CMPLTEXP']
             exp_total = header['NEXP']
         if len(current_sequence) > 0 and exp_index == 1:
-            logger.error('Exposure number reset mid-sequence, throwing away previous sequence: %s', current_sequence)
+            logger.warning('Exposure number reset mid-sequence, ending previous sequence early: %s', current_sequence)
+            finished_sequence = current_sequence.copy()
             current_sequence.clear()
-#            else:
-#                path_init = PathHandler(night, current_sequence[0])
-#                path_last = PathHandler(night, file)
-#                sequence_config = DrsTrigger.__exposure_config_from_file(path_init.preprocessed.fullpath)
-#                exposure_config = DrsTrigger.__exposure_config_from_file(path_init.preprocessed.fullpath)
-#                if sequence_config != exposure_config:
-#                    logger.error('Exposure type changed mid-sequence, throwing away previous sequence: %s')
-#                    current_sequence.clear()
         current_sequence.append(file)
         if exp_index == exp_total:
+            if finished_sequence:
+                logger.error('Unable to return early ended sequence: %s', current_sequence)
             finished_sequence = current_sequence.copy()
             current_sequence.clear()
         return finished_sequence

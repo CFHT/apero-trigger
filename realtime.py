@@ -16,7 +16,8 @@ def realtime(rawpath):
         night, file = setup_symlink(rawpath)
         distribute_file(file, 'raw')
         trigger = DrsTrigger(realtime=True)
-        trigger.preprocess(night, file)
+        if not trigger.preprocess(night, file):
+            return
         trigger.process_file(night, file)
         current_sequence = load_sequence_cache()
         completed_sequence = trigger.sequence_checker(night, current_sequence, file)

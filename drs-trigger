@@ -94,6 +94,7 @@ if __name__ == '__main__':
             if args.command == 'night':
                 trigger.reduce_night(args.night, runid=args.runid)
             elif args.command == 'file':
-                trigger.process_file(args.night, args.filename)
+                if trigger.preprocess(args.night, args.filename):
+                    trigger.process_file(args.night, args.filename)
             elif args.command == 'sequence':
                 trigger.process_sequence(args.night, args.filenames)
