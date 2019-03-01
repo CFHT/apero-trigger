@@ -26,9 +26,9 @@ class CommandMap:
         self.realtime = realtime
 
     def preprocess_exposure(self, path):
-        if self.steps['preprocess']:
-            command = DRS(self.trace, self.realtime).cal_preprocess
-            return command(path)
+        command_map = PreprocessCommandMap(self.steps, self.trace, self.realtime)
+        command = command_map.get_command(None)
+        return command(path)
 
     def process_exposure(self, config, path, ccf_mask=None):
         command_map = ExposureCommandMap(self.steps, self.trace, self.realtime, ccf_mask)
@@ -80,6 +80,18 @@ class BaseCommandMap(object):
 
     def get_command(self, config):
         return self.__commands[config]
+
+
+class PreprocessCommandMap(BaseCommandMap):
+    def __init__(self, steps, trace, realtime=False):
+        commands = defaultdict(lambda: self.__preprocess, {})
+        super().__init__(commands, steps, trace, realtime)
+
+    def __preprocess(self, path):
+        if self.steps['preprocess']:
+            return self.drs.cal_preprocess(path)
+        else:
+            return True
 
 
 class ExposureCommandMap(BaseCommandMap):
