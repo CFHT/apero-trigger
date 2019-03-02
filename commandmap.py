@@ -320,7 +320,11 @@ class ProductBundler:
         logger.info('Creating FITS %s', output_file)
         if self.trace:
             return
-        source = fits.open(input_file)
+        try:
+            source = fits.open(input_file)
+        except:
+            logger.error('Unable to create product %s due to missing file %s', output_file, input_file)
+            return
         if column_names is None:
             target = source
         else:
@@ -339,10 +343,18 @@ class ProductBundler:
         logger.info('Creating MEF %s', output_file)
         if self.trace:
             return
-        primary = fits.open(primary_header_file)[0]
+        try:
+            primary = fits.open(primary_header_file)[0]
+        except:
+            logger.error('Unable to create product %s due to missing file %s', output_file, primary_header_file)
+            return
         mef = fits.HDUList(primary)
         for ext_name, ext_file in extension_files.items():
-            source_hdu = fits.open(ext_file)[0]
+            try:
+                source_hdu = fits.open(ext_file)[0]
+            except:
+                logger.error('Unable to create product %s due to missing file %s', output_file, ext_file)
+                return
             source_hdu.header.insert(0, ('EXTNAME', ext_name))
             if column_names is None:
                 mef.append(source_hdu)
@@ -356,8 +368,12 @@ class ProductBundler:
         if self.trace or not self.distribute:
             return
         subdir = 'quicklook' if self.realtime else 'reduced'
-        new_file = distribute_file(file, subdir)
-        logger.info('Distributing %s', new_file)
+        try:
+            new_file = distribute_file(file, subdir)
+        except:
+            logger.error('Unable to distribute product %s', file)
+        else:
+            logger.info('Distributing %s', new_file)
 
     @staticmethod
     def convert_image_to_binary_table(image_hdu, column_names, transpose=False):
