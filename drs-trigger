@@ -32,6 +32,10 @@ if __name__ == '__main__':
     exclude_parser.set_defaults(preprocess=True)
     reduce_all_parser = subparsers.add_parser('night', parents=[exclude_parser], help='Reduce entire night directory')
     reduce_all_parser.add_argument('--runid')
+    reduce_subset_parser = subparsers.add_parser('subset', parents=[exclude_parser], help='Reduce part of night')
+    reduce_subset_flags = reduce_subset_parser.add_mutually_exclusive_group(required=True)
+    reduce_subset_flags.add_argument('--range', nargs=2, help='Files at start and end of range')
+    reduce_subset_flags.add_argument('--list', nargs='+', help='Specific list of files')
     reduce_file_parse = subparsers.add_parser('file', parents=[exclude_parser], help='Reduce a single file')
     reduce_file_parse.add_argument('filename')
     reduce_sequence_parse = subparsers.add_parser('sequence', parents=[exclude_parser],
@@ -93,6 +97,11 @@ if __name__ == '__main__':
             trigger = DrsTrigger(trace=args.trace, ccf_mask=args.ccfmask, preprocess=args.preprocess)
             if args.command == 'night':
                 trigger.reduce_night(args.night, runid=args.runid)
+            if args.command == 'subset':
+                if args.list:
+                    trigger.reduce(args.night, args.list)
+                elif args.range:
+                    trigger.reduce_range(args.night, args.range[0], args.range[1])
             elif args.command == 'file':
                 if trigger.preprocess(args.night, args.filename):
                     trigger.process_file(args.night, args.filename)

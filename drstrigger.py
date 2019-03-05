@@ -17,13 +17,40 @@ class DrsTrigger:
         self.types = defaultdict(lambda: True, types)
         self.command_map = CommandMap(self.types, trace, realtime)
 
-    def reduce_night(self, night, runid=None):
-        if self.do_realtime:
-            raise RuntimeError('Realtime mode not meant for reducing entire night!')
+    def __find_files(self, night, runid=None):
         path_pattern = PathHandler(night, '*.fits').raw.fullpath
         all_files = [file for file in glob.glob(path_pattern) if os.path.exists(file)]  # filter out broken symlinks
         files = sort_and_filter_files(all_files, self.types, runid)  # Filter out unused input files ahead of time
+        return files
+
+    def __get_subrange(self, files, start_file, end_file):
+        start_index, end_index = None, None
+        for i, file in enumerate(files):
+            filename = os.path.basename(file)
+            if filename == start_file:
+                start_index = i
+            if filename == end_file:
+                end_index = i + 1
+        if start_index is not None and end_index is not None:
+            return files[start_index:end_index]
+        if start_index is None:
+            logger.error('Did not find range start file %s', start_file)
+        if end_index is None:
+            logger.error('Did not find range end file %s', end_file)
+
+    def reduce_night(self, night, runid=None):
+        if self.do_realtime:
+            raise RuntimeError('Realtime mode not meant for reducing entire night!')
+        files = self.__find_files(night, runid)
         self.reduce(night, files)
+
+    def reduce_range(self, night, start_file, end_file):
+        if self.do_realtime:
+            raise RuntimeError('Realtime mode not meant for reducing entire fileset!')
+        files = self.__find_files(night)
+        subrange = self.__get_subrange(files, start_file, end_file)
+        if subrange:
+            self.reduce(night, subrange)
 
     def reduce(self, night, files_in_order):
         if self.do_realtime:
@@ -68,10 +95,12 @@ class DrsTrigger:
     # Appends file to current_sequence, and if sequence is now complete, returns it and clears current_sequence.
     @staticmethod
     def sequence_checker(night, current_sequence, file):
+        path = PathHandler(night, file)
+        filename = path.raw.filename
         finished_sequence = None
-        header = fits.open(file)[0].header
+        header = fits.open(path.raw.fullpath)[0].header
         if 'CMPLTEXP' not in header or 'NEXP' not in header:
-            logger.warning('%s missing CMPLTEXP/NEXP in header, treating sequence as single exposure', file)
+            logger.warning('%s missing CMPLTEXP/NEXP in header, treating sequence as single exposure', filename)
             exp_index = 1
             exp_total = 1
         else:
@@ -81,7 +110,7 @@ class DrsTrigger:
             logger.warning('Exposure number reset mid-sequence, ending previous sequence early: %s', current_sequence)
             finished_sequence = current_sequence.copy()
             current_sequence.clear()
-        current_sequence.append(file)
+        current_sequence.append(filename)
         if exp_index == exp_total:
             if finished_sequence:
                 logger.error('Unable to return early ended sequence: %s', current_sequence)
