@@ -1,4 +1,5 @@
 import json
+from collections import defaultdict, OrderedDict
 from urllib.error import URLError
 from urllib.request import Request, urlopen
 
@@ -64,3 +65,51 @@ class QsoDatabase:
         request = Request(url, json_data.encode('utf-8'), http_headers)
         response = urlopen(request)
         return json.loads(response.read().decode('utf-8'))
+
+
+class DatabaseHeaderConverter:
+    @staticmethod
+    def extracted_header_to_db(header):
+        return {
+            'dprtype': header['DPRTYPE'],
+            'snr10': header['SNR10'],
+            'snr34': header['SNR34'],
+            'snr44': header['SNR44']
+        }
+
+    @staticmethod
+    def ccf_header_to_db(header):
+        return {
+            'ccfmask': header['CCFMASK1'],
+            'ccfmacpp': header['CCFMACP1'],
+            'ccfcontr': header['CCFCONT1'],
+            'ccfrv': header['CCFRV1'],
+            'ccfrvc': header['CCFRVC'],
+            'ccffwhm': header['CCFFWHM1']
+        }
+
+    @staticmethod
+    def exp_status_db_to_header(exposure_status):
+        return {
+            'QSOVALID': (exposure_status['exp_status'], 'QSO validation state'),
+            'QSOGRADE': (exposure_status['grade'], 'QSO grade (1=good 5=unusable)'),
+        }
+
+    @classmethod
+    def seq_status_db_to_header(cls, exposure_statuses):
+        per_key = defaultdict(OrderedDict)
+        for i, exposure_status in enumerate(exposure_statuses):
+            header_vals = cls.exp_status_db_to_header(exposure_status)
+            for key, value in header_vals.items():
+                new_key = cls.indexed_header_key(key, i + 1)
+                per_key[key][new_key] = value
+        combined = {key: value for current in per_key.values() for key, value in current.items()}
+        return combined
+
+    @staticmethod
+    def indexed_header_key(key, index):
+        # Note: this can still produce keywords over 8 chars if there are more than 9 values
+        if len(key) < 8:
+            return key + str(index)
+        else:
+            return key[:7] + str(index)

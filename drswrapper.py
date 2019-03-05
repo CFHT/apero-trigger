@@ -22,6 +22,8 @@ import obj_fit_tellu
 from SpirouDRS import spirouConfig
 import cal_DRIFTPEAK_E2DS_spirou
 
+FIBER_LIST = ('AB', 'A', 'B', 'C')
+
 
 def flatten(items):
     for x in items:

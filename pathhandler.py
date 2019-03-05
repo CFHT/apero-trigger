@@ -3,23 +3,44 @@ from envloader import input_root_directory, reduced_root_directory, temp_root_di
 
 
 class Path:
-    def __init__(self, directory, filename):
+    def __init__(self, directory, file):
         self.directory = directory
-        self.filename = filename
+        self.filename = os.path.basename(file)
 
     @property
     def fullpath(self):
         return os.path.join(self.directory, self.filename)
 
 
-class PathHandler(object):
+class Night:
+    def __init__(self, night):
+        self.night = night
+
+    @property
+    def input_directory(self):
+        return os.path.join(input_root_directory, self.night)
+
+    @property
+    def temp_directory(self):
+        return os.path.join(temp_root_directory, self.night)
+
+    @property
+    def reduced_directory(self):
+        return os.path.join(reduced_root_directory, self.night)
+
+
+class PathHandler:
     def __init__(self, night, raw_file):
-        self.__night = night
+        self.__night = Night(night)
         self.__raw_filename = os.path.basename(raw_file)
+
+    @classmethod
+    def from_preprocessed(cls, night, preprocessed_file):
+        return cls(night, preprocessed_file.replace('_pp.fits', '.fits'))
 
     @property
     def night(self):
-        return self.__night
+        return self.__night.night
 
     @property
     def raw(self):
@@ -27,11 +48,12 @@ class PathHandler(object):
 
     @property
     def preprocessed(self):
-        return Path(self.temp_directory, os.path.splitext(self.raw.filename)[0] + '_pp.fits')
+        return Path(self.temp_directory, self.raw.filename.replace('.fits', '_pp.fits'))
 
-    @property
-    def saved_calib(self):
-        return Path(self.reduced_directory, self.night + '_' + self.preprocessed.filename)
+    def saved_calibration(self, product, fiber=None):
+        if fiber:
+            product += '_' + fiber
+        return Path(self.reduced_directory, self.night + '_' + self.reduced(product).filename)
 
     def s1d(self, fiber):
         return self.extracted_product('s1d', fiber)
@@ -58,15 +80,15 @@ class PathHandler(object):
 
     @property
     def input_directory(self):
-        return os.path.join(input_root_directory, self.night)
+        return self.__night.input_directory
 
     @property
     def temp_directory(self):
-        return os.path.join(temp_root_directory, self.night)
+        return self.__night.temp_directory
 
     @property
     def reduced_directory(self):
-        return os.path.join(reduced_root_directory, self.night)
+        return self.__night.reduced_directory
 
     @property
     def obsid(self):

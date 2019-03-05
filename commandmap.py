@@ -1,16 +1,15 @@
 import pickle
-from collections import defaultdict, OrderedDict
+from collections import defaultdict
 
 from astropy.io import fits
 
-from distribution import distribute_file
+from dbinterface import QsoDatabase, DatabaseHeaderConverter
+from drswrapper import DRS, FIBER_LIST
 from logger import logger
-from drswrapper import DRS
 from pathhandler import PathHandler
-from dbinterface import QsoDatabase
+from productbundler import ProductBundler
 
 CACHE_FILE = '.drstrigger.cache'
-FIBER_LIST = ('AB', 'A', 'B', 'C')
 
 LAST_DARK_KEY = 'LAST_DARK'
 FP_QUEUE_KEY = 'FP_QUEUE'
@@ -150,9 +149,11 @@ class ExposureCommandMap(BaseCommandMap):
 
     def __update_db_with_headers(self, path, ccf_fullpath=None):
         db_headers = {'obsid': str(path.odometer)}
-        db_headers.update(get_reduced_headers(path.e2ds('AB').fullpath))
+        with fits.open(path.e2ds('AB').fullpath) as hdu_list:
+            db_headers.update(DatabaseHeaderConverter.extracted_header_to_db(hdu_list[0].header))
         if ccf_fullpath:
-            db_headers.update(get_ccf_headers(ccf_fullpath))
+            with fits.open(ccf_fullpath) as hdu_list:
+                db_headers.update(DatabaseHeaderConverter.ccf_header_to_db(hdu_list[0].header))
         self.database.send_pipeline_headers(db_headers)
 
 
@@ -261,180 +262,3 @@ class SequenceCommandMap(BaseCommandMap):
         if self.steps['products']:
             self.bundler.set_sequence_status(self.database.get_exposure_range(paths[0].odometer, paths[-1].odometer))
         self.bundler.create_pol_product(paths[0])
-
-
-class ProductBundler:
-    def __init__(self, trace, realtime, create, distribute):
-        self.trace = trace
-        self.realtime = realtime
-        self.create = create or realtime
-        self.distribute = distribute or realtime
-        self.exposures_status = None
-
-    def set_exposure_status(self, exposure_status):
-        if exposure_status:
-            self.set_sequence_status([exposure_status])
-
-    def set_sequence_status(self, exposures_status):
-        self.exposures_status = exposures_status
-
-    def create_spec_product(self, path):
-        filepath = path.raw.fullpath
-        s1d_files = OrderedDict((fiber, path.s1d(fiber).fullpath) for fiber in FIBER_LIST)
-        e2ds_files = OrderedDict((fiber, path.e2ds(fiber, flat_fielded=True).fullpath) for fiber in FIBER_LIST)
-        product_1d = path.final_product('s').fullpath
-        product_2d = path.final_product('e').fullpath
-        self.create_mef(filepath, s1d_files, product_1d, column_names='Flux')
-        self.create_mef(filepath, e2ds_files, product_2d)
-        self.distribute_file(product_1d)
-        self.distribute_file(product_2d)
-
-    def create_pol_product(self, path):
-        filepath = path.raw.fullpath
-        input_files = OrderedDict((
-            ('StokesI', path.reduced('e2ds_AB_StokesI').fullpath),
-            ('pol', path.reduced('e2ds_pol').fullpath),
-            ('null1', path.reduced('e2ds_null1_pol').fullpath),
-            ('null2', path.reduced('e2ds_null2_pol').fullpath)
-        ))
-        product_pol = path.final_product('p').fullpath
-        self.create_mef(filepath, input_files, product_pol)
-        self.distribute_file(product_pol)
-
-    def create_tell_product(self, path):
-        tell_path = path.e2ds('AB', telluric_corrected=True, flat_fielded=True).fullpath
-        product_tell = path.final_product('t').fullpath
-        self.copy_fits(tell_path, product_tell)
-        self.distribute_file(product_tell)
-
-    def create_ccf_product(self, path, ccf_mask, telluric_corrected):
-        ccf_path = path.ccf('AB', ccf_mask, telluric_corrected=telluric_corrected).fullpath
-        product_ccf = path.final_product('v').fullpath
-        column_names = ['Order' + str(i) for i in range(1, 50)] + ['Combined']
-        self.copy_fits(ccf_path, product_ccf, column_names, wcs_cleanup=True)
-        self.distribute_file(product_ccf)
-
-    def copy_fits(self, input_file, output_file, column_names=None, wcs_cleanup=False):
-        if not self.create:
-            return
-        logger.info('Creating FITS %s', output_file)
-        if self.trace:
-            return
-        try:
-            source = fits.open(input_file)
-        except:
-            logger.error('Unable to create product %s due to missing file %s', output_file, input_file)
-            return
-        if column_names is None:
-            target = source
-        else:
-            primary_hdu = fits.PrimaryHDU(header=source[0].header)
-            if wcs_cleanup:
-                for key in ('CRVAL1', 'CRVAL2', 'CDELT1', 'CDELT2', 'CTYPE1', 'CTYPE2'):
-                    primary_hdu.header.remove(key)
-            bin_table_hdu = self.convert_image_to_binary_table(fits.ImageHDU(data=source[0].data), column_names)
-            target = fits.HDUList([primary_hdu, bin_table_hdu])
-        set_post_processing_headers(target[0].header, self.exposures_status)
-        target.writeto(output_file, overwrite=True)
-
-    def create_mef(self, primary_header_file, extension_files, output_file, column_names=None):
-        if not self.create:
-            return
-        logger.info('Creating MEF %s', output_file)
-        if self.trace:
-            return
-        try:
-            primary = fits.open(primary_header_file)[0]
-        except:
-            logger.error('Unable to create product %s due to missing file %s', output_file, primary_header_file)
-            return
-        mef = fits.HDUList(primary)
-        for ext_name, ext_file in extension_files.items():
-            try:
-                source_hdu = fits.open(ext_file)[0]
-            except:
-                logger.error('Unable to create product %s due to missing file %s', output_file, ext_file)
-                return
-            source_hdu.header.insert(0, ('EXTNAME', ext_name))
-            if column_names is None:
-                mef.append(source_hdu)
-            else:
-                bin_table_hdu = self.convert_image_to_binary_table(source_hdu, column_names)
-                mef.append(bin_table_hdu)
-        set_post_processing_headers(mef[0].header, self.exposures_status)
-        mef.writeto(output_file, overwrite=True)
-
-    def distribute_file(self, file):
-        if self.trace or not self.distribute:
-            return
-        subdir = 'quicklook' if self.realtime else 'reduced'
-        try:
-            new_file = distribute_file(file, subdir)
-        except:
-            logger.error('Unable to distribute product %s', file)
-        else:
-            logger.info('Distributing %s', new_file)
-
-    @staticmethod
-    def convert_image_to_binary_table(image_hdu, column_names, transpose=False):
-        data = image_hdu.data if not transpose else image_hdu.data.T
-        if image_hdu.header['NAXIS'] == 1:
-            name = column_names if isinstance(column_names, str) else column_names[0]
-            columns = [fits.Column(name=name, format='D', array=data)]
-        else:
-            assert len(column_names) == len(image_hdu.data)
-            columns = [fits.Column(name=name, format='D', array=column) for name, column in zip(column_names, data)]
-        header = image_hdu.header.copy()
-        if 'BUNIT' in header:
-            header.insert('BUNIT', ('TUNIT', header['BUNIT']))
-            header.remove('BUNIT')
-        return fits.BinTableHDU.from_columns(columns, header=header)
-
-
-def get_reduced_headers(input_file):
-    header = fits.open(input_file)[0].header
-    return {
-        'dprtype': header['DPRTYPE'],
-        'snr10': header['SNR10'],
-        'snr34': header['SNR34'],
-        'snr44': header['SNR44']
-    }
-
-
-def get_ccf_headers(input_file):
-    header = fits.open(input_file)[0].header
-    return {
-        'ccfmask': header['CCFMASK1'],
-        'ccfmacpp': header['CCFMACP1'],
-        'ccfcontr': header['CCFCONT1'],
-        'ccfrv': header['CCFRV1'],
-        'ccfrvc': header['CCFRVC'],
-        'ccffwhm': header['CCFFWHM1']
-    }
-
-
-def set_post_processing_headers(header, exposures_status):
-    add_values_to_header(header, 'QSOVALID', 'QSO validation state', dicts_items(exposures_status, 'exp_status'))
-    add_values_to_header(header, 'QSOGRADE', 'QSO grade (1=good 5=unusable)', dicts_items(exposures_status, 'grade'))
-
-
-def dicts_items(dicts, key):
-    if dicts:
-        return [dictionary.get(key) for dictionary in dicts]
-
-
-def add_values_to_header(header, keyword, comment, values):
-    if not values:
-        key_value_pairs = []
-    elif len(values) == 1:
-        key_value_pairs = [(keyword, values[0])]
-    else:
-        # Note: this can still produce keywords over 8 chars if there are more than 9 values
-        if len(keyword) < 8:
-            key_transform = lambda key, i: key + str(i)
-        else:
-            key_transform = lambda key, i: key[:7] + str(i)
-        key_value_pairs = [(key_transform(keyword, i + 1), value) for i, value in enumerate(values)]
-    for key, value in key_value_pairs:
-        if value is not None:
-            header[key] = (value, comment)
