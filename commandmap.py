@@ -1,3 +1,4 @@
+import os
 import pickle
 from collections import defaultdict
 
@@ -90,7 +91,7 @@ class PreprocessCommandMap(BaseCommandMap):
         if self.steps['preprocess']:
             return self.drs.cal_preprocess(path)
         else:
-            return True
+            return os.path.exists(path.preprocessed.fullpath)
 
 
 class ExposureCommandMap(BaseCommandMap):

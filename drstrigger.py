@@ -59,10 +59,13 @@ class DrsTrigger:
         for file in files_in_order:
             if not self.preprocess(night, file):
                 continue
-            self.process_file(night, file)
-            completed_sequence = self.sequence_checker(night, current_sequence, file)
-            if completed_sequence:
-                self.process_sequence(night, completed_sequence)
+            try:
+                self.process_file(night, file)
+                completed_sequence = self.sequence_checker(night, current_sequence, file)
+                if completed_sequence:
+                    self.process_sequence(night, completed_sequence)
+            except:
+                logger.error('Critical failure processing %s, skipping', file, exc_info=True)
 
     def preprocess(self, night, file):
         path = PathHandler(night, file)
