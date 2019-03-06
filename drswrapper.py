@@ -82,9 +82,10 @@ class DRS:
         fp_file = fp_path.e2ds(fiber).filename
         return self.__logwrapper(cal_WAVE_E2DS_EA_spirou, hc_path.night, fp_file, [hc_file])
 
-    def cal_CCF_E2DS(self, path, mask, telluric_corrected):
+    def cal_CCF_E2DS(self, path, mask, telluric_corrected, fp):
         filename = path.e2ds('AB', telluric_corrected, flat_fielded=True).filename
-        return self.__logwrapper(cal_CCF_E2DS_FP_spirou, path.night, filename, mask, 0, 100, 1)
+        ccf_recipe = cal_CCF_E2DS_FP_spirou if fp else cal_CCF_E2DS_spirou
+        return self.__logwrapper(ccf_recipe, path.night, filename, mask, 0, 100, 1)
 
     def pol(self, paths):
         input_files = [path.e2ds(fiber).filename for path in paths for fiber in ('A', 'B')]

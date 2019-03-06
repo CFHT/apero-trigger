@@ -6,7 +6,7 @@ from logger import logger
 from commandmap import CommandMap
 from pathhandler import PathHandler
 from drswrapper import DRS
-from fileselector import sort_and_filter_files, is_telluric_standard, is_spectroscopy
+from fileselector import sort_and_filter_files, HeaderChecker
 
 TRIGGER_VERSION = '011'
 
@@ -76,7 +76,7 @@ class DrsTrigger:
 
     def process_file(self, night, file):
         path = PathHandler(night, file)
-        exposure_config = self.__exposure_config_from_file(path.preprocessed.fullpath)
+        exposure_config = self.__exposure_config_from_file(path)
         try:
             result = self.command_map.process_exposure(exposure_config, path, self.ccf_mask)
             return result
@@ -85,9 +85,9 @@ class DrsTrigger:
 
     def process_sequence(self, night, files):
         paths = [PathHandler(night, file) for file in files]
-        sequence_config = self.__exposure_config_from_file(paths[0].preprocessed.fullpath)
+        sequence_config = self.__exposure_config_from_file(paths[0])
         for path in paths:
-            exposure_config = self.__exposure_config_from_file(path.preprocessed.fullpath)
+            exposure_config = self.__exposure_config_from_file(path)
             assert exposure_config == sequence_config, 'Exposure type changed mid-sequence'
         try:
             result = self.command_map.process_sequence(sequence_config, paths)
@@ -99,21 +99,14 @@ class DrsTrigger:
     @staticmethod
     def sequence_checker(night, current_sequence, file):
         path = PathHandler(night, file)
-        filename = path.raw.filename
         finished_sequence = None
-        header = fits.open(path.raw.fullpath)[0].header
-        if 'CMPLTEXP' not in header or 'NEXP' not in header:
-            logger.warning('%s missing CMPLTEXP/NEXP in header, treating sequence as single exposure', filename)
-            exp_index = 1
-            exp_total = 1
-        else:
-            exp_index = header['CMPLTEXP']
-            exp_total = header['NEXP']
+        header = HeaderChecker(path.raw.fullpath)
+        exp_index, exp_total = header.get_exposure_index_and_total()
         if len(current_sequence) > 0 and exp_index == 1:
             logger.warning('Exposure number reset mid-sequence, ending previous sequence early: %s', current_sequence)
             finished_sequence = current_sequence.copy()
             current_sequence.clear()
-        current_sequence.append(filename)
+        current_sequence.append(path.raw.filename)
         if exp_index == exp_total:
             if finished_sequence:
                 logger.error('Unable to return early ended sequence: %s', current_sequence)
@@ -122,19 +115,19 @@ class DrsTrigger:
         return finished_sequence
 
     @staticmethod
-    def __exposure_config_from_file(filename):
-        try:
-            header = fits.open(filename)[0].header
-        except:
-            raise RuntimeError('Failed to open', filename)
-        if 'OBSTYPE' in header and header['OBSTYPE'] == 'OBJECT':
-            prefix = 'SPEC' if is_spectroscopy(header) else 'POL'
-            suffix = 'TELL' if is_telluric_standard(header) else 'OBJ'
-            return prefix + '_' + suffix
-        elif 'DPRTYPE' in header and header['DPRTYPE'] != 'None':
-            return header['DPRTYPE']
-        else:
-            raise RuntimeError('Non-object file missing DPRTYPE keyword', filename)
+    def __exposure_config_from_file(path):
+        filename = path.preprocessed.fullpath
+        header = HeaderChecker(filename)
+        dpr_type = header.get_dpr_type()
+        if header.is_object():
+            mode = 'SPEC' if header.is_spectroscopy() else 'POL'
+            tell = 'TELL' if header.is_telluric_standard() else ''
+            obj_type = mode + tell
+            if dpr_type.startswith('OBJ_'):
+                return dpr_type.replace('OBJ', obj_type, 1)
+            else:
+                logger.warning('Object exposure %s has DPRTYPE %s instead of OBJ', filename, dpr_type)
+        return dpr_type
 
     @staticmethod
     def drs_version():

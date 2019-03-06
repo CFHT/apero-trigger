@@ -97,10 +97,14 @@ class PreprocessCommandMap(BaseCommandMap):
 class ExposureCommandMap(BaseCommandMap):
     def __init__(self, steps, trace, realtime=False, ccf_mask=None):
         commands = defaultdict(lambda: self.__do_nothing, {
-            'SPEC_OBJ': self.__extract_and_apply_telluric_correction,
-            'POL_OBJ': self.__extract_and_apply_telluric_correction,
-            'SPEC_TELL': self.__extract_telluric_standard,
-            'POL_TELL': self.__extract_telluric_standard,
+            'SPEC_DARK': self.__extract_normal_obj_dark,
+            'POL_DARK': self.__extract_normal_obj_dark,
+            'SPEC_FP': self.__extract_normal_obj_fp,
+            'POL_FP': self.__extract_normal_obj_fp,
+            'SPECTELL_DARK': self.__extract_telluric_standard,
+            'POLTELL_DARK': self.__extract_telluric_standard,
+            'SPECTELL_FP': self.__extract_telluric_standard,
+            'POLTELL_FP': self.__extract_telluric_standard,
         })
         super().__init__(commands, steps, trace, realtime)
         self.ccf_mask = ccf_mask
@@ -121,8 +125,7 @@ class ExposureCommandMap(BaseCommandMap):
             self.bundler.set_exposure_status(self.database.get_exposure(path.odometer))
         self.bundler.create_spec_product(path)
 
-    def __extract_and_apply_telluric_correction(self, path):
-        self.__extract_object(path)
+    def __telluric_correction(self, path):
         # TODO - skip telluric correction on sky exposures
         telluric_corrected = False
         try:
@@ -134,12 +137,26 @@ class ExposureCommandMap(BaseCommandMap):
                 telluric_corrected = True
             self.bundler.create_tell_product(path)
         finally:
-            if self.steps['ccf']:
-                self.drs.cal_CCF_E2DS(path, self.ccf_mask, telluric_corrected=telluric_corrected)
-            self.bundler.create_ccf_product(path, self.ccf_mask, telluric_corrected=telluric_corrected)
+            return telluric_corrected
+
+    def __ccf(self, path, telluric_corrected, fp):
+        if self.steps['ccf']:
+            self.drs.cal_CCF_E2DS(path, self.ccf_mask, telluric_corrected=telluric_corrected, fp=fp)
+        self.bundler.create_ccf_product(path, self.ccf_mask, telluric_corrected=telluric_corrected, fp=fp)
+
+    def __extract_normal_obj(self, path, fp):
+        self.__extract_object(path)
+        telluric_corrected = self.__telluric_correction(path)
+        self.__ccf(path, telluric_corrected, fp=fp)
         if self.realtime or self.steps['database']:
-            ccf_path = path.ccf('AB', self.ccf_mask, telluric_corrected=telluric_corrected).fullpath
+            ccf_path = path.ccf('AB', self.ccf_mask, telluric_corrected=telluric_corrected, fp=fp).fullpath
             self.__update_db_with_headers(path, ccf_path)
+
+    def __extract_normal_obj_dark(self, path):
+        self.__extract_normal_obj(path, fp=False)
+
+    def __extract_normal_obj_fp(self, path):
+        self.__extract_normal_obj(path, fp=True)
 
     def __extract_telluric_standard(self, path):
         self.__extract_object(path)
@@ -167,10 +184,14 @@ class SequenceCommandMap(BaseCommandMap):
             'FLAT_FLAT': self.__flat,
             'FP_FP': self.__fabry_perot,
             'HCONE_HCONE': self.__hc_one,
-            'SPEC_OBJ': self.__do_nothing,
-            'SPEC_TELL': self.__do_nothing,
-            'POL_OBJ': self.__polar,
-            'POL_TELL': self.__polar,
+            'SPEC_DARK': self.__do_nothing,
+            'SPEC_FP': self.__do_nothing,
+            'SPECTELL_DARK': self.__do_nothing,
+            'SPECTELL_FP': self.__do_nothing,
+            'POL_DARK': self.__polar,
+            'POL_FP': self.__polar,
+            'POLTELL_DARK': self.__polar,
+            'POLTELL_FP': self.__polar,
         })
         super().__init__(commands, steps, trace, realtime)
 

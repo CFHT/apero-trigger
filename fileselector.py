@@ -24,14 +24,15 @@ def filter_files_by_type(files, types):
 
 
 def is_desired_type(file, types):
+    header = HeaderChecker(file)
     return (types['preprocess'] and (has_calibration_extension(file) or has_object_extension(file)) or
             types['calibrations'] and has_calibration_extension(file) or
             types['objects'] and has_object_extension(file) or
             types['pol'] and has_object_extension(file) or
-            types['mktellu'] and has_object_extension(file) and is_telluric_standard(fits.open(file)[0].header) or
-            types['fittellu'] and has_object_extension(file) and not is_telluric_standard(fits.open(file)[0].header) or
+            types['mktellu'] and has_object_extension(file) and header.is_telluric_standard() or
+            types['fittellu'] and has_object_extension(file) and not header.is_telluric_standard() or
             # TODO: handle skipping sky exposures when command map is updated to do so
-            types['ccf'] and has_object_extension(file) and not is_telluric_standard(fits.open(file)[0].header) or
+            types['ccf'] and has_object_extension(file) and not header.is_telluric_standard() or
             types['products'] and has_object_extension(file) or
             types['distribute'] and has_object_extension(file) or
             types['database'] and has_object_extension(file))
@@ -45,21 +46,53 @@ def has_calibration_extension(file):
     return file.endswith(('a.fits', 'c.fits', 'd.fits', 'f.fits'))
 
 
-def is_spectroscopy(header):
-    if 'SBRHB1_P' not in header:
-        raise RuntimeError('Object file missing SBRHB1_P keyword')
-    if 'SBRHB2_P' not in header:
-        raise RuntimeError('Object file missing SBRHB2_P keyword')
-    return header['SBRHB1_P'] == 'P16' and header['SBRHB2_P'] == 'P16'
+class HeaderChecker:
+    def __init__(self, file):
+        self.file = file
+        self.header = None
 
+    def __lazy_loading(self):
+        if not self.header:
+            try:
+                hdulist = fits.open(self.file)
+            except:
+                raise RuntimeError('Failed to open', self.file)
+            self.header = hdulist[0].header
 
-def is_telluric_standard(header):
-    name_keyword = 'OBJECT'
-    if name_keyword not in header:
-        name_keyword = 'OBJNAME'
-        if name_keyword not in header:
-            raise RuntimeError('Object file missing OBJECT and OBJNAME keywords')
-    return header[name_keyword] in TELLURIC_STANDARDS
+    def is_object(self):
+        self.__lazy_loading()
+        return 'OBSTYPE' in self.header and self.header['OBSTYPE'] == 'OBJECT'
+
+    def is_spectroscopy(self):
+        self.__lazy_loading()
+        if 'SBRHB1_P' not in self.header:
+            raise RuntimeError('Object file missing SBRHB1_P keyword', self.file)
+        if 'SBRHB2_P' not in self.header:
+            raise RuntimeError('Object file missing SBRHB2_P keyword', self.file)
+        return self.header['SBRHB1_P'] == 'P16' and self.header['SBRHB2_P'] == 'P16'
+
+    def is_telluric_standard(self):
+        self.__lazy_loading()
+        name_keyword = 'OBJECT'
+        if name_keyword not in self.header:
+            name_keyword = 'OBJNAME'
+            if name_keyword not in self.header:
+                raise RuntimeError('Object file missing OBJECT and OBJNAME keywords', self.file)
+        return self.header[name_keyword] in TELLURIC_STANDARDS
+
+    def get_dpr_type(self):
+        self.__lazy_loading()
+        if 'DPRTYPE' not in self.header or self.header['DPRTYPE'] == 'None':
+            raise RuntimeError('File missing DPRTYPE keyword', self.file)
+        return self.header['DPRTYPE']
+
+    def get_exposure_index_and_total(self):
+        self.__lazy_loading()
+        if 'CMPLTEXP' not in self.header or 'NEXP' not in self.header:
+            logger.warning('%s missing CMPLTEXP/NEXP in header, treating sequence as single exposure', self.file)
+            return 1, 1
+        else:
+            return self.header['CMPLTEXP'], self.header['NEXP']
 
 
 def sort_files_by_date_header(files, runid=None):

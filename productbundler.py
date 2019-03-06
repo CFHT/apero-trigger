@@ -159,9 +159,9 @@ class ProductBundler:
         self.create_mef(mef_config, product_tell)
         self.distribute_file(product_tell)
 
-    def create_ccf_product(self, path, ccf_mask, telluric_corrected):
+    def create_ccf_product(self, path, ccf_mask, telluric_corrected, fp):
         product_ccf = path.final_product('v').fullpath
-        ccf_path = path.ccf('AB', ccf_mask, telluric_corrected=telluric_corrected)
+        ccf_path = path.ccf('AB', ccf_mask, telluric_corrected=telluric_corrected, fp=fp)
         column_names = ['Order' + str(i) for i in range(1, 50)] + ['Combined']
         wcs_cleanup = lambda header: [header.remove(key, ignore_missing=True) for key in
                                       ('CRVAL1', 'CRVAL2', 'CDELT1', 'CDELT2', 'CTYPE1', 'CTYPE2')]
