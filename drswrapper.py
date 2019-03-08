@@ -104,7 +104,9 @@ class DRS:
     def __logwrapper(self, module, night, *args):
         command_string = ' '.join((module.__NAME__, night, *map(str, flatten(args))))
         logger.info(command_string)
-        if not self.trace:
+        if self.trace:
+            return True
+        else:
             sys.argv = [sys.argv[0]]  # Wipe out argv so DRS doesn't rely on CLI arguments instead of what is passed in
             try:
                 locals = module.main(night, *args)

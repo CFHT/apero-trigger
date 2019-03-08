@@ -58,9 +58,15 @@ class PathHandler:
     def s1d(self, fiber):
         return self.extracted_product('s1d', fiber)
 
-    def e2ds(self, fiber, telluric_corrected=False, flat_fielded=False):
+    def e2ds(self, fiber, telluric_corrected=False, telluric_reconstruction=False, flat_fielded=False):
         product_name = 'e2dsff' if flat_fielded else 'e2ds'
-        suffix = 'tellu_corrected' if telluric_corrected else None
+        assert not (telluric_corrected and telluric_reconstruction)
+        if telluric_corrected:
+            suffix = 'tellu_corrected'
+        elif telluric_reconstruction:
+            suffix = 'tellu_recon'
+        else:
+            suffix = None
         return self.extracted_product(product_name, fiber, suffix)
 
     def ccf(self, fiber, mask, fp=True, telluric_corrected=False):
