@@ -5,15 +5,15 @@ from astropy.io import fits
 from logger import logger
 from commandmap import CommandMap
 from pathhandler import PathHandler
-from drswrapper import DRS
+from drswrapper import DRS, CcfParams
 from fileselector import sort_and_filter_files, HeaderChecker
 
 TRIGGER_VERSION = '012'
 
 class DrsTrigger:
-    def __init__(self, realtime=False, trace=False, ccf_mask=None, **types):
+    def __init__(self, realtime=False, trace=False, ccf_params=None, **types):
         self.do_realtime = realtime
-        self.ccf_mask = ccf_mask
+        self.ccf_params = ccf_params
         self.types = defaultdict(lambda: True, types)
         self.command_map = CommandMap(self.types, trace, realtime)
 
@@ -78,7 +78,7 @@ class DrsTrigger:
         path = PathHandler(night, file)
         exposure_config = self.__exposure_config_from_file(path)
         try:
-            result = self.command_map.process_exposure(exposure_config, path, self.ccf_mask)
+            result = self.command_map.process_exposure(exposure_config, path, self.ccf_params)
             return result
         except Exception as e:
             raise RuntimeError('Error extracting', path.preprocessed.fullpath, e)

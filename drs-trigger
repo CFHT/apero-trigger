@@ -23,6 +23,9 @@ if __name__ == '__main__':
     reduce_parser.add_argument('night')
     reduce_parser.add_argument('--trace', action='store_true', help='Only simulate DRS commands, requires pp files')
     reduce_parser.add_argument('--ccfmask', type=str, default='gl581_Sep18_cleaned.mas')
+    reduce_parser.add_argument('--ccfv0', type=float, default=0)
+    reduce_parser.add_argument('--ccfrange', type=float, default=100)
+    reduce_parser.add_argument('--ccfstep', type=float, default=1)
     # reduce_opts = reduce_parser.add_mutually_exclusive_group(required=True)
     # reduce_opts.add_argument('night')
     # reduce_opts.add_argument('runid')
@@ -79,7 +82,7 @@ if __name__ == '__main__':
         from listener import run_listener
         run_listener(str(args.port))
     else:
-        from drstrigger import DrsTrigger
+        from drstrigger import DrsTrigger, CcfParams
         if args.command == 'version':
             if args.drs:
                 print(DrsTrigger.drs_version())
@@ -88,13 +91,15 @@ if __name__ == '__main__':
             else:
                 print('DRS version', DrsTrigger.drs_version(), '-', 'Trigger version', DrsTrigger.trigger_version())
         elif args.command == 'steps':
-            trigger = DrsTrigger(trace=args.trace, ccf_mask=args.ccfmask, preprocess=args.preprocess,
+            ccf_params = CcfParams(args.ccfmask, args.ccfv0, args.ccfrange, args.ccfstep)
+            trigger = DrsTrigger(trace=args.trace, ccf_params=ccf_params, preprocess=args.preprocess,
                                  calibrations=args.calibrations, objects=args.objects, pol=args.pol,
                                  mktellu=args.mktellu, fittellu=args.fittellu, ccf=args.ccf, products=args.products,
                                  distribute=args.distribute, database=args.database)
             trigger.reduce_night(args.night, runid=args.runid)
         else:
-            trigger = DrsTrigger(trace=args.trace, ccf_mask=args.ccfmask, preprocess=args.preprocess)
+            ccf_params = CcfParams(args.ccfmask, args.ccfv0, args.ccfrange, args.ccfstep)
+            trigger = DrsTrigger(trace=args.trace, ccf_params=ccf_params, preprocess=args.preprocess)
             if args.command == 'night':
                 trigger.reduce_night(args.night, runid=args.runid)
             if args.command == 'subset':

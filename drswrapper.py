@@ -1,4 +1,4 @@
-from collections import Iterable
+from collections import Iterable, namedtuple
 import sys
 from logger import logger, director_message
 
@@ -38,6 +38,8 @@ class QCFailure(Exception):
         super().__init__('QC failure: ' + ', '.join(errors))
         self.errors = errors
 
+
+CcfParams = namedtuple('CcfParams', ('mask', 'v0', 'range', 'step'))
 
 class DRS:
     def __init__(self, trace=False, realtime=False):
@@ -82,10 +84,10 @@ class DRS:
         fp_file = fp_path.e2ds(fiber).filename
         return self.__logwrapper(cal_WAVE_E2DS_EA_spirou, hc_path.night, fp_file, [hc_file])
 
-    def cal_CCF_E2DS(self, path, mask, telluric_corrected, fp):
+    def cal_CCF_E2DS(self, path, params, telluric_corrected, fp):
         filename = path.e2ds('AB', telluric_corrected, flat_fielded=True).filename
         ccf_recipe = cal_CCF_E2DS_FP_spirou if fp else cal_CCF_E2DS_spirou
-        return self.__logwrapper(ccf_recipe, path.night, filename, mask, 0, 100, 1)
+        return self.__logwrapper(ccf_recipe, path.night, filename, params.mask, params.v0, params.range, params.step)
 
     def pol(self, paths):
         input_files = [path.e2ds(fiber).filename for path in paths for fiber in ('A', 'B')]

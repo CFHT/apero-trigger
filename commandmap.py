@@ -5,7 +5,7 @@ from collections import defaultdict
 from astropy.io import fits
 
 from dbinterface import QsoDatabase, DatabaseHeaderConverter
-from drswrapper import DRS, FIBER_LIST
+from drswrapper import DRS, FIBER_LIST, CcfParams
 from logger import logger
 from pathhandler import PathHandler
 from productbundler import ProductBundler
@@ -30,8 +30,8 @@ class CommandMap:
         command = command_map.get_command(None)
         return command(path)
 
-    def process_exposure(self, config, path, ccf_mask=None):
-        command_map = ExposureCommandMap(self.steps, self.trace, self.realtime, ccf_mask)
+    def process_exposure(self, config, path, ccf_params=None):
+        command_map = ExposureCommandMap(self.steps, self.trace, self.realtime, ccf_params)
         command = command_map.get_command(config)
         return command(path)
 
@@ -95,7 +95,7 @@ class PreprocessCommandMap(BaseCommandMap):
 
 
 class ExposureCommandMap(BaseCommandMap):
-    def __init__(self, steps, trace, realtime=False, ccf_mask=None):
+    def __init__(self, steps, trace, realtime=False, ccf_params=None):
         commands = defaultdict(lambda: self.__do_nothing, {
             'SPEC_DARK': self.__extract_normal_obj_dark,
             'POL_DARK': self.__extract_normal_obj_dark,
@@ -107,9 +107,9 @@ class ExposureCommandMap(BaseCommandMap):
             'POLTELL_FP': self.__extract_telluric_standard,
         })
         super().__init__(commands, steps, trace, realtime)
-        self.ccf_mask = ccf_mask
-        if self.ccf_mask is None:
-            self.ccf_mask = 'gl581_Sep18_cleaned.mas'
+        self.ccf_params = ccf_params
+        if self.ccf_params is None:
+            self.ccf_params = CcfParams('gl581_Sep18_cleaned.mas', 0, 100, 1)
 
     def __unknown(self, path):
         logger.warning('Unrecognized DPRTYPE, skipping exposure %s', path.preprocessed.filename)
@@ -141,15 +141,15 @@ class ExposureCommandMap(BaseCommandMap):
 
     def __ccf(self, path, telluric_corrected, fp):
         if self.steps['ccf']:
-            self.drs.cal_CCF_E2DS(path, self.ccf_mask, telluric_corrected=telluric_corrected, fp=fp)
-        self.bundler.create_ccf_product(path, self.ccf_mask, telluric_corrected=telluric_corrected, fp=fp)
+            self.drs.cal_CCF_E2DS(path, self.ccf_params, telluric_corrected=telluric_corrected, fp=fp)
+        self.bundler.create_ccf_product(path, self.ccf_params.mask, telluric_corrected=telluric_corrected, fp=fp)
 
     def __extract_normal_obj(self, path, fp):
         self.__extract_object(path)
         telluric_corrected = self.__telluric_correction(path)
         self.__ccf(path, telluric_corrected, fp=fp)
         if self.realtime or self.steps['database']:
-            ccf_path = path.ccf('AB', self.ccf_mask, telluric_corrected=telluric_corrected, fp=fp).fullpath
+            ccf_path = path.ccf('AB', self.ccf_params.mask, telluric_corrected=telluric_corrected, fp=fp).fullpath
             self.__update_db_with_headers(path, ccf_path)
 
     def __extract_normal_obj_dark(self, path):
