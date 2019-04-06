@@ -3,6 +3,60 @@
 import argparse
 import logger
 
+
+class StepsParser:
+    __valid_steps = (
+        'preprocess',
+        'calibrations',
+        'extract',
+        'pol',
+        'mktellu',
+        'fittellu',
+        'ccf',
+        'products',
+        'distribute',
+        'database'
+    )
+    __step_aliases = {
+        'pp': 'preprocess',
+        'cals': 'calibrations',
+        'objects': 'extract',
+        'dist': 'distribute',
+        'db': 'database'
+    }
+    step_name_map = {**{step: step for step in __valid_steps}, **__step_aliases}
+
+    @classmethod
+    def valid_steps_str(cls):
+        grouped_step_name_map = {}
+        for k, v in cls.step_name_map.items():
+            grouped_step_name_map.setdefault(v, []).append(k)
+        step_help_strings = ['|'.join(grouped_names) for grouped_names in grouped_step_name_map.values()]
+        return ', '.join(step_help_strings)
+
+    def __init__(self, arg):
+        self.__arg = arg
+
+    def get_mapped_steps(self, steps):
+        if not steps:
+            return steps
+        errors = []
+        mapped_steps = []
+        for step in steps:
+            if step not in self.step_name_map.keys():
+                errors.append(step + ' invalid')
+            else:
+                mapped_step = self.step_name_map[step]
+                if mapped_step in mapped_steps:
+                    errors.append(mapped_step + ' used multiple times')
+                else:
+                    mapped_steps.append(mapped_step)
+        if errors:
+            message = ', '.join(errors)
+            raise argparse.ArgumentError(self.__arg, message)
+        return [self.step_name_map[step] for step in steps]
+
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--loglevel', choices=['INFO', 'WARNING', 'ERROR'], default='INFO')
@@ -26,6 +80,8 @@ if __name__ == '__main__':
     reduce_parser.add_argument('--ccfv0', type=float, default=0)
     reduce_parser.add_argument('--ccfrange', type=float, default=100)
     reduce_parser.add_argument('--ccfstep', type=float, default=1)
+    steps_parse = reduce_parser.add_argument('--steps', nargs='+', help='Options: ' + StepsParser.valid_steps_str())
+
     # reduce_opts = reduce_parser.add_mutually_exclusive_group(required=True)
     # reduce_opts.add_argument('night')
     # reduce_opts.add_argument('runid')
@@ -44,24 +100,18 @@ if __name__ == '__main__':
     reduce_sequence_parse = subparsers.add_parser('sequence', parents=[exclude_parser],
                                                   help='Reduce a sequence of files together')
     reduce_sequence_parse.add_argument('filenames', nargs='+')
-    steps_parse = subparsers.add_parser('steps', parents=[reduce_parser], help='Perform specified reduction steps')
-    steps_parse.add_argument('--runid')
-    steps_parse.add_argument('--preprocess', '--pp', dest='preprocess', action='store_true')
-    steps_parse.add_argument('--calibrations', '--cals', dest='calibrations', action='store_true')
-    steps_parse.add_argument('--objects', action='store_true')
-    steps_parse.add_argument('--pol', action='store_true')
-    steps_parse.add_argument('--mktellu', action='store_true')
-    steps_parse.add_argument('--fittellu', action='store_true')
-    steps_parse.add_argument('--ccf', action='store_true')
-    steps_parse.add_argument('--products', action='store_true')
-    steps_parse.add_argument('--distribute', action='store_true')
-    steps_parse.add_argument('--database', '--db', action='store_true')
     # TODO - support for:
     # - different limiters
     #   - night
     #   - runid
     #   - target
     args = parser.parse_args()
+    step_args = []
+    try:
+        steps = args.steps if 'steps' in args else None
+        step_args = StepsParser(steps_parse).get_mapped_steps(steps)
+    except argparse.ArgumentError as e:
+        parser.error(e)
 
     log_files = []
     if args.logfile:
@@ -82,7 +132,8 @@ if __name__ == '__main__':
         from listener import run_listener
         run_listener(str(args.port))
     else:
-        from drstrigger import DrsTrigger, CcfParams
+        from drstrigger import DrsTrigger
+        from commandmap import ObjectSteps, Steps, CcfParams
         if args.command == 'version':
             if args.drs:
                 print(DrsTrigger.drs_version())
@@ -90,16 +141,13 @@ if __name__ == '__main__':
                 print(DrsTrigger.trigger_version())
             else:
                 print('DRS version', DrsTrigger.drs_version(), '-', 'Trigger version', DrsTrigger.trigger_version())
-        elif args.command == 'steps':
-            ccf_params = CcfParams(args.ccfmask, args.ccfv0, args.ccfrange, args.ccfstep)
-            trigger = DrsTrigger(trace=args.trace, ccf_params=ccf_params, preprocess=args.preprocess,
-                                 calibrations=args.calibrations, objects=args.objects, pol=args.pol,
-                                 mktellu=args.mktellu, fittellu=args.fittellu, ccf=args.ccf, products=args.products,
-                                 distribute=args.distribute, database=args.database)
-            trigger.reduce_night(args.night, runid=args.runid)
         else:
             ccf_params = CcfParams(args.ccfmask, args.ccfv0, args.ccfrange, args.ccfstep)
-            trigger = DrsTrigger(trace=args.trace, ccf_params=ccf_params, preprocess=args.preprocess)
+            if step_args:
+                steps = Steps.from_keys(step_args)
+            else:
+                steps = Steps(args.preprocess, True, ObjectSteps.all())
+            trigger = DrsTrigger(steps, trace=args.trace, ccf_params=ccf_params)
             if args.command == 'night':
                 trigger.reduce_night(args.night, runid=args.runid)
             if args.command == 'subset':

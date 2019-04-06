@@ -7,6 +7,7 @@ set_drs_config_subdir('realtime')
 from logger import logger
 from pathhandler import PathHandler
 from drstrigger import DrsTrigger
+from commandmap import Steps
 
 SEQUENCE_CACHE_FILE = '.sequence.cache'
 
@@ -15,7 +16,7 @@ def realtime(rawpath):
     try:
         night, file = setup_symlink(rawpath)
         distribute_file(file, 'raw')
-        trigger = DrsTrigger(realtime=True)
+        trigger = DrsTrigger(Steps.all(), realtime=True)
         if not trigger.preprocess(night, file):
             return
         trigger.process_file(night, file)

@@ -5,22 +5,22 @@ from astropy.io import fits
 from logger import logger
 from commandmap import CommandMap
 from pathhandler import PathHandler
-from drswrapper import DRS, CcfParams
+from drswrapper import DRS
 from fileselector import sort_and_filter_files, HeaderChecker
 
 TRIGGER_VERSION = '012'
 
 class DrsTrigger:
-    def __init__(self, realtime=False, trace=False, ccf_params=None, **types):
+    def __init__(self, steps, realtime=False, trace=False, ccf_params=None):
         self.do_realtime = realtime
         self.ccf_params = ccf_params
-        self.types = defaultdict(lambda: True, types)
-        self.command_map = CommandMap(self.types, trace, realtime)
+        self.steps = steps
+        self.command_map = CommandMap(self.steps, trace, realtime)
 
     def __find_files(self, night, runid=None):
         path_pattern = PathHandler(night, '*.fits').raw.fullpath
         all_files = [file for file in glob.glob(path_pattern) if os.path.exists(file)]  # filter out broken symlinks
-        files = sort_and_filter_files(all_files, self.types, runid)  # Filter out unused input files ahead of time
+        files = sort_and_filter_files(all_files, self.steps, runid)  # Filter out unused input files ahead of time
         return files
 
     def __get_subrange(self, files, start_file, end_file):

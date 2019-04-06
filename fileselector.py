@@ -25,17 +25,21 @@ def filter_files_by_type(files, types):
 
 def is_desired_type(file, types):
     header = HeaderChecker(file)
-    return (types['preprocess'] and (has_calibration_extension(file) or has_object_extension(file)) or
-            types['calibrations'] and has_calibration_extension(file) or
-            types['objects'] and has_object_extension(file) or
-            types['pol'] and has_object_extension(file) or
-            types['mktellu'] and has_object_extension(file) and header.is_telluric_standard() or
-            types['fittellu'] and has_object_extension(file) and not header.is_telluric_standard() or
+    return (types.preprocess and (has_calibration_extension(file) or has_object_extension(file)) or
+            types.calibrations and has_calibration_extension(file) or
+            types.objects and has_object_extension(file) and is_desired_object(types.objects, header))
+
+
+def is_desired_object(object_types, header):
+    return (object_types.extract or
+            object_types.pol or
+            object_types.mktellu and header.is_telluric_standard() or
+            object_types.fittellu and not header.is_telluric_standard() or
             # TODO: handle skipping sky exposures when command map is updated to do so
-            types['ccf'] and has_object_extension(file) and not header.is_telluric_standard() or
-            types['products'] and has_object_extension(file) or
-            types['distribute'] and has_object_extension(file) or
-            types['database'] and has_object_extension(file))
+            object_types.ccf and not header.is_telluric_standard() or
+            object_types.products or
+            object_types.distribute or
+            object_types.database)
 
 
 def has_object_extension(file):
