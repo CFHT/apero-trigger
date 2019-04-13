@@ -131,7 +131,7 @@ class ExposureCommandMap(BaseCommandMap):
         super().__init__(commands, steps, trace, realtime)
         self.ccf_params = ccf_params
         if self.ccf_params is None:
-            self.ccf_params = CcfParams('masque_sept18_andres_trans50.mas', 0, 100, 1)
+            self.ccf_params = CcfParams('masque_sept18_andres_trans50.mas', 0, 200, 1)
 
     def __unknown(self, path):
         logger.warning('Unrecognized DPRTYPE, skipping exposure %s', path.preprocessed.filename)

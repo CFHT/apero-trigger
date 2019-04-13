@@ -78,7 +78,7 @@ if __name__ == '__main__':
     reduce_parser.add_argument('--trace', action='store_true', help='Only simulate DRS commands, requires pp files')
     reduce_parser.add_argument('--ccfmask', type=str, default='masque_sept18_andres_trans50.mas')
     reduce_parser.add_argument('--ccfv0', type=float, default=0)
-    reduce_parser.add_argument('--ccfrange', type=float, default=100)
+    reduce_parser.add_argument('--ccfrange', type=float, default=200)
     reduce_parser.add_argument('--ccfstep', type=float, default=1)
     steps_parse = reduce_parser.add_argument('--steps', nargs='+', help='Options: ' + StepsParser.valid_steps_str())
 
