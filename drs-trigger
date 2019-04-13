@@ -76,7 +76,7 @@ if __name__ == '__main__':
     reduce_parser = argparse.ArgumentParser(add_help=False)
     reduce_parser.add_argument('night')
     reduce_parser.add_argument('--trace', action='store_true', help='Only simulate DRS commands, requires pp files')
-    reduce_parser.add_argument('--ccfmask', type=str, default='gl581_Sep18_cleaned.mas')
+    reduce_parser.add_argument('--ccfmask', type=str, default='masque_sept18_andres_trans50.mas')
     reduce_parser.add_argument('--ccfv0', type=float, default=0)
     reduce_parser.add_argument('--ccfrange', type=float, default=100)
     reduce_parser.add_argument('--ccfstep', type=float, default=1)
