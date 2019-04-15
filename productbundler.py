@@ -1,5 +1,3 @@
-import glob
-import os
 import textwrap
 from collections import defaultdict, OrderedDict
 
@@ -10,7 +8,7 @@ from dbinterface import DatabaseHeaderConverter
 from distribution import distribute_file
 from drswrapper import FIBER_LIST
 from logger import logger
-from pathhandler import PathHandler, Path, Night
+from pathhandler import Path, Night
 
 
 class BinTableConfig:
@@ -169,7 +167,7 @@ class ProductBundler:
             try:
                 cal_extensions = self.get_cal_extensions(path)
             except:
-                logger.error('Failed to find calibration files in header, cannot create product %s', product_2d)
+                logger.error('Failed to find calibration files in header, cannot create %s', product_2d.filename)
             else:
                 return [
                     self.get_primary_header(path),
@@ -190,7 +188,7 @@ class ProductBundler:
             try:
                 cal_extensions = self.get_cal_extensions(path, 'WaveAB', 'BlazeAB')
             except:
-                logger.error('Failed to find calibration files in header, cannot create product %s', product_pol)
+                logger.error('Failed to find calibration files in header, cannot create %s', product_pol.filename)
             else:
                 return [
                     self.get_primary_header(path),
@@ -211,7 +209,7 @@ class ProductBundler:
             try:
                 cal_extensions = self.get_cal_extensions(path, 'WaveAB', 'BlazeAB')
             except:
-                logger.error('Failed to find calibration files in header, cannot create product %s', product_tell)
+                logger.error('Failed to find calibration files in header, cannot create %s', product_tell.filename)
             else:
                 return [
                     self.get_primary_header(path),
@@ -245,7 +243,12 @@ class ProductBundler:
         self.produce(product_ccf, config_builder, skip_header_magic=True)
 
     def get_primary_header(self, path):
-        return HDUConfig(None, path.preprocessed, primary_header_only=True)
+        def remove_new_keys(header):
+            remove_keys(header, ('DRSPID', 'INF1000', 'QCC', 'QCC000N',
+                                 'QCC001N', 'QCC001V', 'QCC001L', 'QCC001P',
+                                 'QCC002N', 'QCC002V', 'QCC002L', 'QCC002P'))
+
+        return HDUConfig(None, path.preprocessed, primary_header_only=True, header_operation=remove_new_keys)
 
     def get_default_columns(self):
         return ['Order' + str(i) for i in range(0, 49)]
@@ -293,24 +296,22 @@ class ProductBundler:
         for fiber in FIBER_LIST:
             source_file = path.e2ds(fiber, flat_fielded=True).fullpath
             source_header = fits.open(source_file)[0].header
-            for keyword in ['WAVEFILE', 'BLAZFILE']:
+            for keyword in ['CDBWAVE', 'CDBBLAZE']:
                 headers_per_fiber[keyword][fiber] = source_header[keyword]
         extensions = OrderedDict()
         reduced_directory = Night(path.night).reduced_directory
         for fiber in FIBER_LIST:
-            filename = headers_per_fiber['WAVEFILE'][fiber]
+            filename = headers_per_fiber['CDBWAVE'][fiber]
             extensions['Wave' + fiber] = Path(reduced_directory, filename)
         for fiber in FIBER_LIST:
-            flat_path = PathHandler.from_preprocessed('*', headers_per_fiber['BLAZFILE'][fiber])
-            path_pattern = flat_path.saved_calibration('blaze', fiber).fullpath
-            filename = next(file for file in glob.glob(path_pattern) if os.path.exists(file))
+            filename = headers_per_fiber['CDBBLAZE'][fiber]
             extensions['Blaze' + fiber] = Path(reduced_directory, filename)
         return extensions
 
     @classmethod
     def resample_wcs_to_data(cls, header, data):
-        c_start = header['CRVAL1']
-        c_delta = header['CDELT1']
+        c_start = float(header['CRVAL1'])
+        c_delta = float(header['CDELT1'])
         num_bins = len(data)
         return cls.steps(c_start, c_delta, num_bins)
 

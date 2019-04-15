@@ -80,19 +80,19 @@ class DatabaseHeaderConverter:
     @staticmethod
     def ccf_header_to_db(header):
         return {
-            'ccfmask': header['CCFMASK1'],
-            'ccfmacpp': header['CCFMACP1'],
-            'ccfcontr': header['CCFCONT1'],
-            'ccfrv': header['CCFRV1'],
+            'ccfmask': header['CCFMASK'],
+            'ccfmacpp': header['CCFMACP'],
+            'ccfcontr': header['CCFCONT'],
+            'ccfrv': header['CCFRV'],
             'ccfrvc': header['CCFRVC'],
-            'ccffwhm': header['CCFFWHM1']
+            'ccffwhm': header['CCFFWHM']
         }
 
     @staticmethod
     def exp_status_db_to_header(exposure_status):
         return {
             'QSOVALID': (exposure_status['exp_status'], 'QSO validation state'),
-            'QSOGRADE': (exposure_status['grade'], 'QSO grade (1=good 5=unusable)'),
+            'QSOGRADE': (exposure_status.get('grade', 0), 'QSO grade (1=good 5=unusable)'),
         }
 
     @classmethod

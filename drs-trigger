@@ -21,6 +21,7 @@ class StepsParser:
         'pp': 'preprocess',
         'cals': 'calibrations',
         'objects': 'extract',
+        'package': 'products',
         'dist': 'distribute',
         'db': 'database'
     }
