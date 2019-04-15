@@ -281,11 +281,16 @@ class ProductBundler:
             hdulist[0].header.insert('FILENAME', ('COMMENT', line))
 
     def get_cal_extensions(self, path, *args):
-        def cleanup_wave(header):
-            remove_keys(header, ('CRVAL2', 'CDELT2', 'CTYPE2'))
+        def keep_key(key):
+            return key in ('EXTNAME', 'NAXIS', 'NAXIS1', 'NAXIS2') or key.startswith('INF') or key.startswith('CDB')
+
+        def cleanup_keys(header):
+            remove_keys(header, [key for key in header.keys() if not keep_key(key)])
 
         def extension_operation(ext_name):
-            return cleanup_wave if ext_name.startswith('Wave') else None
+            if ext_name.startswith('Wave') or ext_name.startswith('Blaze'):
+                return cleanup_keys
+            return None
 
         cal_path_dict = self.get_cal_paths(path)
         ext_names = args if args else cal_path_dict.keys()
