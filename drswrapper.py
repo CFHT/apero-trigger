@@ -119,16 +119,20 @@ class DRS:
                 return True
             except SystemExit:
                 logger.error('DRS recipe failed with a system exit: %s', command_string)
-                if self.realtime:
+                if self.__should_log_errors_to_director(module):
                     director_message('DRS command failed (exit): ' + command_string, level='warning')
             except QCFailure:
                 logger.error('QC failed for DRS recipe: %s', command_string)
-                if self.realtime:
+                if self.__should_log_errors_to_director(module):
                     director_message('DRS QC failed for command: ' + command_string, level='warning')
             except Exception as error:
                 logger.error('DRS recipe failed with uncaught exception: %s', command_string, exc_info=True)
-                if self.realtime:
+                if self.__should_log_errors_to_director(module):
                     director_message('DRS command failed (exception): ' + command_string, level='warning')
 
     def __sequence_logwrapper(self, module, paths):
         return self.__logwrapper(module, paths[0].night, [path.preprocessed.filename for path in paths])
+
+    def __should_log_errors_to_director(self, module):
+        ignore_modules = (cal_CCF_E2DS_spirou, cal_CCF_E2DS_FP_spirou, obj_mk_tellu, obj_fit_tellu, pol_spirou)
+        return self.realtime and module not in ignore_modules
