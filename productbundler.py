@@ -271,7 +271,7 @@ class ProductBundler:
             if extname.startswith('Wave') or extname.startswith('Blaze') or extname.endswith('Err'):
                 continue
             dupe_keys = verify_duplicate_cards(extension.header, primary_header.items())
-            remove_keys(ext_header, dupe_keys)
+            remove_keys(extension.header, dupe_keys)
         self.add_extension_description(hdulist)
         self.set_post_processing_headers(primary_header)
 
