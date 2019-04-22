@@ -127,8 +127,12 @@ class ProductBundler:
         self.create_1d_spectra_product(path)
         self.create_2d_spectra_product(path)
 
+    def produce_and_distribute(self, path, config_builder, use_default_columns=False, skip_header_magic=False):
+        self.produce(path, config_builder, use_default_columns, skip_header_magic)
+        if self.distribute:
+            self.distribute_file(path.fullpath)
+
     def produce(self, path, config_builder, use_default_columns=False, skip_header_magic=False):
-        fullpath = path.fullpath
         if self.create:
             hdu_configs = config_builder()
             if use_default_columns:
@@ -137,9 +141,7 @@ class ProductBundler:
                         hdu_config.set_bin_table_config(BinTableConfig(column_names=self.get_default_columns()))
             hdulist_operation = self.product_header_update if not skip_header_magic else None
             mef_config = MEFConfig(hdu_configs, hdulist_operation=hdulist_operation)
-            self.create_mef(mef_config, fullpath)
-        if self.distribute:
-            self.distribute_file(fullpath)
+            self.create_mef(mef_config, path.fullpath)
 
     def create_1d_spectra_product(self, path):
         def update_hdu(hdu):
@@ -176,7 +178,7 @@ class ProductBundler:
                 ]
 
         product_2d = path.final_product('e')
-        self.produce(product_2d, config_builder)
+        self.produce_and_distribute(product_2d, config_builder)
 
     def create_pol_product(self, path):
         def wipe_snr(header):
@@ -202,7 +204,7 @@ class ProductBundler:
                 ]
 
         product_pol = path.final_product('p')
-        self.produce(product_pol, config_builder)
+        self.produce_and_distribute(product_pol, config_builder)
 
     def create_tell_product(self, path):
         def config_builder():
@@ -219,7 +221,7 @@ class ProductBundler:
                 ]
 
         product_tell = path.final_product('t')
-        self.produce(product_tell, config_builder)
+        self.produce_and_distribute(product_tell, config_builder)
 
     def create_ccf_product(self, path, ccf_mask, telluric_corrected, fp):
         def fix_header(header):
@@ -240,7 +242,7 @@ class ProductBundler:
             ]
 
         product_ccf = path.final_product('v')
-        self.produce(product_ccf, config_builder, skip_header_magic=True)
+        self.produce_and_distribute(product_ccf, config_builder, skip_header_magic=True)
 
     def get_primary_header(self, path):
         def remove_new_keys(header):
