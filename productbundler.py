@@ -73,11 +73,7 @@ class HDUConfig:
 
     def open_hdu(self):
         input_file = self.path.fullpath
-        try:
-            hdu_list = fits.open(input_file)
-        except:
-            logger.error('Unable to open file %s', input_file)
-            raise
+        hdu_list = fits.open(input_file)
         hdu = hdu_list[self.extension]
         return hdu
 
@@ -332,8 +328,10 @@ class ProductBundler:
             logger.info('Creating MEF %s', output_file)
             try:
                 hdu_list = mef_config.create_hdu_list()
+            except FileNotFoundError as err:
+                logger.error('Creation of %s failed: unable to open file %s', output_file, err.filename)
             except:
-                logger.error('Unable to create product %s', output_file, exc_info=True)
+                logger.error('Creation of %s failed', output_file, exc_info=True)
             else:
                 hdu_list.writeto(output_file, overwrite=True)
 
@@ -342,8 +340,10 @@ class ProductBundler:
             subdir = 'quicklook' if self.realtime else 'reduced'
             try:
                 new_file = distribute_file(file, subdir)
+            except FileNotFoundError as err:
+                logger.error('Distribution of %s failed: unable to open file %s', file, err.filename)
             except:
-                logger.error('Unable to distribute product %s', file, exc_info=True)
+                logger.error('Distribution of %s failed', file, exc_info=True)
             else:
                 logger.info('Distributing %s', new_file)
 
