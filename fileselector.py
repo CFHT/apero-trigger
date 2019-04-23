@@ -76,13 +76,23 @@ class HeaderChecker:
         return self.header['SBRHB1_P'] == 'P16' and self.header['SBRHB2_P'] == 'P16'
 
     def is_telluric_standard(self):
+        return self.get_object_name() in TELLURIC_STANDARDS
+
+    def is_sky(self):
+        self.__lazy_loading()
+        if self.header.get('TRG_TYPE') == 'SKY':
+            return True
+        object_name = self.get_object_name()
+        return object_name.startswith('sky_') or object_name.endswith('_sky')
+
+    def get_object_name(self):
         self.__lazy_loading()
         name_keyword = 'OBJECT'
         if name_keyword not in self.header:
             name_keyword = 'OBJNAME'
             if name_keyword not in self.header:
                 raise RuntimeError('Object file missing OBJECT and OBJNAME keywords', self.file)
-        return self.header[name_keyword] in TELLURIC_STANDARDS
+        return self.header[name_keyword]
 
     def get_dpr_type(self):
         self.__lazy_loading()

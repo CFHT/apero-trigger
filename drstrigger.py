@@ -121,8 +121,13 @@ class DrsTrigger:
         dpr_type = header.get_dpr_type()
         if header.is_object():
             mode = 'SPEC' if header.is_spectroscopy() else 'POL'
-            tell = 'TELL' if header.is_telluric_standard() else ''
-            obj_type = mode + tell
+            if header.is_sky():
+                suffix = 'SKY'
+            elif header.is_telluric_standard():
+                suffix = 'TELL'
+            else:
+                suffix = ''
+            obj_type = mode + suffix
             if dpr_type.startswith('OBJ_'):
                 return dpr_type.replace('OBJ', obj_type, 1)
             else:

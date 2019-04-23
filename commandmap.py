@@ -127,6 +127,10 @@ class ExposureCommandMap(BaseCommandMap):
             'POLTELL_DARK': self.__extract_telluric_standard,
             'SPECTELL_FP': self.__extract_telluric_standard,
             'POLTELL_FP': self.__extract_telluric_standard,
+            'SPECSKY_DARK': self.__extract_sky,
+            'POLSKY_DARK': self.__extract_sky,
+            'SPECSKY_FP': self.__extract_sky,
+            'POLSKY_FP': self.__extract_sky,
         })
         super().__init__(commands, steps, trace, realtime)
         self.ccf_params = ccf_params
@@ -183,7 +187,13 @@ class ExposureCommandMap(BaseCommandMap):
     def __extract_telluric_standard(self, path):
         self.__extract_object(path)
         if self.steps.objects.mktellu:
-            self.drs.obj_mk_tellu(path)
+            pass # need to update this to work with new creation model
+            # self.drs.obj_mk_tellu(path)
+        if self.realtime or self.steps.objects.database:
+            self.__update_db_with_headers(path)
+
+    def __extract_sky(self, path):
+        self.__extract_object(path)
         if self.realtime or self.steps.objects.database:
             self.__update_db_with_headers(path)
 
@@ -210,10 +220,14 @@ class SequenceCommandMap(BaseCommandMap):
             'SPEC_FP': self.__do_nothing,
             'SPECTELL_DARK': self.__do_nothing,
             'SPECTELL_FP': self.__do_nothing,
+            'SPECSKY_DARK': self.__do_nothing,
+            'SPECSKY_FP': self.__do_nothing,
             'POL_DARK': self.__polar,
             'POL_FP': self.__polar,
             'POLTELL_DARK': self.__polar,
             'POLTELL_FP': self.__polar,
+            'POLSKY_DARK': self.__polar,
+            'POLSKY_FP': self.__polar,
         })
         super().__init__(commands, steps, trace, realtime)
 
