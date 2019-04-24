@@ -101,7 +101,7 @@ class MEFConfig:
     def wcs_clean(header):
         if header['NAXIS'] < 2 or header.get('XTENSION') == 'BINTABLE':
             remove_keys(header, ('CTYPE2', 'CUNIT2', 'CRPIX2', 'CRVAL2', 'CDELT2'))
-        if header['NAXIS'] < 1:
+        if header['NAXIS'] < 1 or header.get('XTENSION') == 'BINTABLE':
             remove_keys(header, ('CTYPE1', 'CUNIT1', 'CRPIX1', 'CRVAL1', 'CDELT1'))
 
 
@@ -231,7 +231,8 @@ class ProductBundler:
 
         def config_builder():
             ccf_path = path.ccf('AB', ccf_mask, telluric_corrected=telluric_corrected, fp=fp)
-            bin_table_config = BinTableConfig(column_names=['Velocity'] + self.get_default_columns() + ['Combined'])
+            bin_table_config = BinTableConfig(column_names=['Velocity'] + self.get_default_columns() + ['Combined'],
+                                              column_units=['km/s'] + [None] * 50)
             return [
                 HDUConfig(None, ccf_path, header_operation=fix_header, primary_header_only=True),
                 HDUConfig('CCF', ccf_path, hdu_operation=update_hdu, bin_table=bin_table_config)
