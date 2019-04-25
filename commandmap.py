@@ -152,18 +152,17 @@ class ExposureCommandMap(BaseCommandMap):
         self.bundler.create_spec_product(path)
 
     def __telluric_correction(self, path):
-        # TODO - skip telluric correction on sky exposures
-        telluric_corrected = False
-        try:
-            if self.steps.objects.fittellu:
-                temp = self.drs.obj_fit_tellu(path)
-                if temp is not None:
-                    telluric_corrected = True
-            else:
-                telluric_corrected = True
-            self.bundler.create_tell_product(path)
-        finally:
-            return telluric_corrected
+        if self.steps.objects.fittellu:
+            try:
+                result = self.drs.obj_fit_tellu(path)
+                telluric_corrected = result is not None
+            except:
+                telluric_corrected = False
+        else:
+            expected_telluric_path = path.e2ds('AB', telluric_corrected=True, flat_fielded=True)
+            telluric_corrected = os.path.exists(expected_telluric_path.fullpath)
+        self.bundler.create_tell_product(path)
+        return telluric_corrected
 
     def __ccf(self, path, telluric_corrected, fp):
         if self.steps.objects.ccf:
@@ -316,6 +315,8 @@ class SequenceCommandMap(BaseCommandMap):
                 self.drs.cal_WAVE_E2DS(fp_path, hc_path, fiber)
 
     def __polar(self, paths):
+        if len(paths) < 2:
+            return
         if self.steps.objects.pol:
             self.drs.pol(paths)
         if self.steps.objects.products:

@@ -25,18 +25,18 @@ def filter_files_by_type(files, types):
 
 def is_desired_type(file, types):
     header = HeaderChecker(file)
-    return (types.preprocess and (has_calibration_extension(file) or has_object_extension(file)) or
-            types.calibrations and has_calibration_extension(file) or
-            types.objects and has_object_extension(file) and is_desired_object(types.objects, header))
+    return ((types.preprocess and (has_calibration_extension(file) or has_object_extension(file)) or
+             types.calibrations and has_calibration_extension(file) or
+             types.objects and has_object_extension(file) and is_desired_object(types.objects, header))
+            and not header.is_aborted())
 
 
 def is_desired_object(object_types, header):
     return (object_types.extract or
             object_types.pol or
             object_types.mktellu and header.is_telluric_standard() or
-            object_types.fittellu and not header.is_telluric_standard() or
-            # TODO: handle skipping sky exposures when command map is updated to do so
-            object_types.ccf and not header.is_telluric_standard() or
+            object_types.fittellu and not header.is_telluric_standard() and not header.is_sky() or
+            object_types.ccf and not header.is_telluric_standard() and not header.is_sky() or
             object_types.products or
             object_types.distribute or
             object_types.database)
@@ -82,8 +82,14 @@ class HeaderChecker:
         self.__lazy_loading()
         if self.header.get('TRG_TYPE') == 'SKY':
             return True
-        object_name = self.get_object_name()
-        return object_name.startswith('sky_') or object_name.endswith('_sky')
+        object_lowercase = self.get_object_name().lower()
+        return object_lowercase == 'sky' or object_lowercase.startswith('sky_') or object_lowercase.endswith('_sky')
+
+    def is_aborted(self):
+        self.__lazy_loading()
+        if 'EXPTIME' not in self.header or 'EXPREQ' not in self.header:
+            logger.warning('%s missing EXPTIME/EXPREQ in header, assuming not an aborted exposure', self.file)
+        return self.header['EXPTIME'] / self.header['EXPREQ'] < 0.1
 
     def get_object_name(self):
         self.__lazy_loading()
