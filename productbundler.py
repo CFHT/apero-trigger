@@ -123,19 +123,16 @@ class ProductBundler:
         self.create_1d_spectra_product(path)
         self.create_2d_spectra_product(path)
 
-    def produce_and_distribute(self, path, config_builder, use_default_columns=False, skip_header_magic=False):
-        self.produce(path, config_builder, use_default_columns, skip_header_magic)
-        if self.distribute:
-            self.distribute_file(path.fullpath)
+    def produce_and_distribute(self, path, config_builder):
+        self.produce(path, config_builder)
+        self.distribute_file(path)
 
-    def produce(self, path, config_builder, use_default_columns=False, skip_header_magic=False):
+    def produce(self, path, config_builder):
+        self.produce_generalized(path, config_builder, hdulist_operation=self.product_header_update)
+
+    def produce_generalized(self, path, config_builder, hdulist_operation=None):
         if self.create:
             hdu_configs = config_builder()
-            if use_default_columns:
-                for hdu_config in hdu_configs:
-                    if not hdu_config.is_bin_table():
-                        hdu_config.set_bin_table_config(BinTableConfig(column_names=self.get_default_columns()))
-            hdulist_operation = self.product_header_update if not skip_header_magic else None
             mef_config = MEFConfig(hdu_configs, hdulist_operation=hdulist_operation)
             self.create_mef(mef_config, path.fullpath)
 
@@ -182,6 +179,15 @@ class ProductBundler:
                 key = 'SNR' + str(i)
                 header[key] = 'Unknown'
 
+        def update_then_copy_input_files_to_primary(hdulist):
+            self.product_header_update(hdulist)
+            primary_header = hdulist[0].header
+            pol_header = hdulist[1].header
+            in_file_cards = [card for card in pol_header.cards if card[0].startswith('FILENAM')]
+            for card in in_file_cards:
+                primary_header.insert('FILENAME', card)
+            primary_header.remove('FILENAME', ignore_missing=True)
+
         def config_builder():
             try:
                 cal_extensions = self.get_cal_extensions(path, 'WaveAB', 'BlazeAB')
@@ -200,7 +206,8 @@ class ProductBundler:
                 ]
 
         product_pol = path.final_product('p')
-        self.produce_and_distribute(product_pol, config_builder)
+        self.produce_generalized(product_pol, config_builder, update_then_copy_input_files_to_primary)
+        self.distribute_file(product_pol)
 
     def create_tell_product(self, path):
         def config_builder():
@@ -223,6 +230,10 @@ class ProductBundler:
         def fix_header(header):
             header.insert('CRVAL1', ('CRPIX1', 0))
 
+        def update_primary_header(header):
+            self.set_post_processing_headers(header)
+            fix_header(header)
+
         def update_hdu(hdu):
             existing = hdu.data
             velocities = self.resample_wcs_to_data(hdu.header, existing[0])
@@ -234,12 +245,13 @@ class ProductBundler:
             bin_table_config = BinTableConfig(column_names=['Velocity'] + self.get_default_columns() + ['Combined'],
                                               column_units=['km/s'] + [None] * 50)
             return [
-                HDUConfig(None, ccf_path, header_operation=fix_header, primary_header_only=True),
+                HDUConfig(None, ccf_path, header_operation=update_primary_header, primary_header_only=True),
                 HDUConfig('CCF', ccf_path, hdu_operation=update_hdu, bin_table=bin_table_config)
             ]
 
         product_ccf = path.final_product('v')
-        self.produce_and_distribute(product_ccf, config_builder, skip_header_magic=True)
+        self.produce_generalized(product_ccf, config_builder, None)
+        self.distribute_file(product_ccf)
 
     def get_primary_header(self, path):
         def remove_new_keys(header):
@@ -336,8 +348,9 @@ class ProductBundler:
             else:
                 hdu_list.writeto(output_file, overwrite=True)
 
-    def distribute_file(self, file):
+    def distribute_file(self, path):
         if self.distribute:
+            file = path.fullpath
             subdir = 'quicklook' if self.realtime else 'reduced'
             try:
                 new_file = distribute_file(file, subdir)

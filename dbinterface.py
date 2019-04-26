@@ -92,7 +92,7 @@ class DatabaseHeaderConverter:
     def exp_status_db_to_header(exposure_status):
         return {
             'QSOVALID': (exposure_status['exp_status'], 'QSO validation state'),
-            'QSOGRADE': (exposure_status.get('grade', 0), 'QSO grade (1=good 5=unusable)'),
+            'QSOGRADE': (exposure_status.get('grade'), 'QSO grade (1=good 5=unusable)'),
         }
 
     @classmethod
