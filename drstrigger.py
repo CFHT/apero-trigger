@@ -8,7 +8,7 @@ from pathhandler import PathHandler
 from drswrapper import DRS
 from fileselector import sort_and_filter_files, HeaderChecker
 
-TRIGGER_VERSION = '015'
+TRIGGER_VERSION = '016'
 
 class DrsTrigger:
     def __init__(self, steps, realtime=False, trace=False, ccf_params=None):
