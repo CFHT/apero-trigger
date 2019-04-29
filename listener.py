@@ -1,11 +1,15 @@
+from multiprocessing import Pool, Queue
+
 import cherrypy
 from flask import Flask, request
+
 from logger import logger
 from realtime import realtime
 
 
-def run_listener(port):
+def run_listener(port, num_processes):
     app = Flask('realtime-server')
+    file_queue = Queue()
 
     @app.route('/_status', methods=['GET'])
     def status_check():
@@ -15,7 +19,7 @@ def run_listener(port):
     def realtime_trigger():
         filename = request.args.get('filename')
         try:
-            realtime(filename)
+            file_queue.put(filename)
             return '{"success": true}', 200
         except Exception as error:
             return '{"success": false}', 500
@@ -29,3 +33,14 @@ def run_listener(port):
     logger.info('starting server')
     cherrypy.engine.start()
     logger.info('waiting for requests')
+    Pool(num_processes, worker, (file_queue,))
+
+
+def worker(queue):
+    while True:
+        item = queue.get(True)
+        logger.info('Processing %s', item)
+        try:
+            realtime(item)
+        except:
+            logger.info('An error occurred while processing %s', item)

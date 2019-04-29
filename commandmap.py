@@ -127,6 +127,10 @@ class ExposureCommandMap(BaseCommandMap):
             'POLTELL_DARK': self.__extract_telluric_standard,
             'SPECTELL_FP': self.__extract_telluric_standard,
             'POLTELL_FP': self.__extract_telluric_standard,
+            'SPECSKY_DARK': self.__extract_sky,
+            'POLSKY_DARK': self.__extract_sky,
+            'SPECSKY_FP': self.__extract_sky,
+            'POLSKY_FP': self.__extract_sky,
         })
         super().__init__(commands, steps, trace, realtime)
         self.ccf_params = ccf_params
@@ -148,18 +152,17 @@ class ExposureCommandMap(BaseCommandMap):
         self.bundler.create_spec_product(path)
 
     def __telluric_correction(self, path):
-        # TODO - skip telluric correction on sky exposures
-        telluric_corrected = False
-        try:
-            if self.steps.objects.fittellu:
-                temp = self.drs.obj_fit_tellu(path)
-                if temp is not None:
-                    telluric_corrected = True
-            else:
-                telluric_corrected = True
-            self.bundler.create_tell_product(path)
-        finally:
-            return telluric_corrected
+        if self.steps.objects.fittellu:
+            try:
+                result = self.drs.obj_fit_tellu(path)
+                telluric_corrected = result is not None
+            except:
+                telluric_corrected = False
+        else:
+            expected_telluric_path = path.e2ds('AB', telluric_corrected=True, flat_fielded=True)
+            telluric_corrected = os.path.exists(expected_telluric_path.fullpath)
+        self.bundler.create_tell_product(path)
+        return telluric_corrected
 
     def __ccf(self, path, telluric_corrected, fp):
         if self.steps.objects.ccf:
@@ -183,7 +186,13 @@ class ExposureCommandMap(BaseCommandMap):
     def __extract_telluric_standard(self, path):
         self.__extract_object(path)
         if self.steps.objects.mktellu:
-            self.drs.obj_mk_tellu(path)
+            pass # need to update this to work with new creation model
+            # self.drs.obj_mk_tellu(path)
+        if self.realtime or self.steps.objects.database:
+            self.__update_db_with_headers(path)
+
+    def __extract_sky(self, path):
+        self.__extract_object(path)
         if self.realtime or self.steps.objects.database:
             self.__update_db_with_headers(path)
 
@@ -210,10 +219,14 @@ class SequenceCommandMap(BaseCommandMap):
             'SPEC_FP': self.__do_nothing,
             'SPECTELL_DARK': self.__do_nothing,
             'SPECTELL_FP': self.__do_nothing,
+            'SPECSKY_DARK': self.__do_nothing,
+            'SPECSKY_FP': self.__do_nothing,
             'POL_DARK': self.__polar,
             'POL_FP': self.__polar,
             'POLTELL_DARK': self.__polar,
             'POLTELL_FP': self.__polar,
+            'POLSKY_DARK': self.__polar,
+            'POLSKY_FP': self.__polar,
         })
         super().__init__(commands, steps, trace, realtime)
 
@@ -302,6 +315,8 @@ class SequenceCommandMap(BaseCommandMap):
                 self.drs.cal_WAVE_E2DS(fp_path, hc_path, fiber)
 
     def __polar(self, paths):
+        if len(paths) < 2:
+            return
         if self.steps.objects.pol:
             self.drs.pol(paths)
         if self.steps.objects.products:

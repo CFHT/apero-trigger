@@ -8,7 +8,7 @@ from pathhandler import PathHandler
 from drswrapper import DRS
 from fileselector import sort_and_filter_files, HeaderChecker
 
-TRIGGER_VERSION = '013'
+TRIGGER_VERSION = '016'
 
 class DrsTrigger:
     def __init__(self, steps, realtime=False, trace=False, ccf_params=None):
@@ -121,8 +121,13 @@ class DrsTrigger:
         dpr_type = header.get_dpr_type()
         if header.is_object():
             mode = 'SPEC' if header.is_spectroscopy() else 'POL'
-            tell = 'TELL' if header.is_telluric_standard() else ''
-            obj_type = mode + tell
+            if header.is_sky():
+                suffix = 'SKY'
+            elif header.is_telluric_standard():
+                suffix = 'TELL'
+            else:
+                suffix = ''
+            obj_type = mode + suffix
             if dpr_type.startswith('OBJ_'):
                 return dpr_type.replace('OBJ', obj_type, 1)
             else:

@@ -21,6 +21,7 @@ class StepsParser:
         'pp': 'preprocess',
         'cals': 'calibrations',
         'objects': 'extract',
+        'package': 'products',
         'dist': 'distribute',
         'db': 'database'
     }
@@ -73,6 +74,7 @@ if __name__ == '__main__':
     realtime_parse.add_argument('filepath')
     listener_parse = subparsers.add_parser('listener', help='Run local http listener for automated realtime calls')
     listener_parse.add_argument('--port', default=9998)
+    listener_parse.add_argument('--threads', default=4)
     reduce_parser = argparse.ArgumentParser(add_help=False)
     reduce_parser.add_argument('night')
     reduce_parser.add_argument('--trace', action='store_true', help='Only simulate DRS commands, requires pp files')
@@ -130,7 +132,7 @@ if __name__ == '__main__':
         realtime(args.filepath)
     elif args.command == 'listener':
         from listener import run_listener
-        run_listener(str(args.port))
+        run_listener(str(args.port), int(args.threads))
     else:
         from drstrigger import DrsTrigger
         from commandmap import ObjectSteps, Steps, CcfParams
