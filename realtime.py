@@ -1,23 +1,20 @@
 import pickle
 from pathlib import Path
 
-from distribution import distribute_file
-from envconfig import sessiondir, set_drs_config_subdir
-set_drs_config_subdir('realtime')
-
+from drsloader import DrsLoader
 from logger import logger
-from pathhandler import Exposure
-from drstrigger import DrsTrigger
-from commandmap import Steps
 
 SEQUENCE_CACHE_FILE = '.sequence.cache'
 
 
 def realtime(raw_path):
     try:
-        night, file = setup_symlink(raw_path)
-        distribute_file(file, 'raw')
-        trigger = DrsTrigger(Steps.all(), realtime=True)
+        DrsLoader.set_drs_config_subdir('realtime')
+        loader = DrsLoader()
+        cfht = loader.get_loaded_trigger_module()
+        night, file = setup_symlink(raw_path, cfht)
+        cfht.distribute_raw_file(file)
+        trigger = cfht.CfhtRealtimeTrigger()
         if not trigger.preprocess(night, file):
             return
         trigger.process_file(night, file)
@@ -30,15 +27,15 @@ def realtime(raw_path):
         logger.error('Error during realtime processing', exc_info=True)
 
 
-def setup_symlink(raw_path):
+def setup_symlink(raw_path, cfht):
     try:
-        relative_path = Path(raw_path).relative_to(sessiondir)
+        relative_path = Path(raw_path).relative_to(DrsLoader.SESSION_DIR)
     except ValueError:
-        raise RuntimeError('Night directory should start with ' + sessiondir)
+        raise RuntimeError('Night directory should start with ' + DrsLoader.SESSION_DIR)
     night = relative_path.parent
     filename = relative_path.name
 
-    link_path = Exposure(night, filename).raw
+    link_path = cfht.Exposure(night, filename).raw
     link_path.parent.mkdir(parents=True, exist_ok=True)
     try:
         link_path.symlink_to(raw_path)

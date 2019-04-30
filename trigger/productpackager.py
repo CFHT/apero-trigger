@@ -5,10 +5,8 @@ from pathlib import Path
 import numpy as np
 from astropy.io import fits
 
-from dbinterface import DatabaseHeaderConverter
-from distribution import distribute_file
-from drswrapper import FIBER_LIST
-from logger import logger
+from .drswrapper import FIBER_LIST
+from .log import log
 
 
 class BinTableConfig:
@@ -104,19 +102,9 @@ class MEFConfig:
             remove_keys(header, ('CTYPE1', 'CUNIT1', 'CRPIX1', 'CRVAL1', 'CDELT1'))
 
 
-class ProductBundler:
-    def __init__(self, trace, realtime, create, distribute):
-        self.realtime = realtime
-        self.create = (create or realtime) and not trace
-        self.distribute = (distribute or realtime) and not trace
-        self.exposures_status = None
-
-    def set_exposure_status(self, exposure_status):
-        if exposure_status:
-            self.set_sequence_status([exposure_status])
-
-    def set_sequence_status(self, exposures_status):
-        self.exposures_status = exposures_status
+class ProductPackager:
+    def __init__(self, trace, create):
+        self.create = create and not trace
 
     def create_spec_product(self, exposure):
         self.create_1d_spectra_product(exposure)
@@ -149,7 +137,7 @@ class ProductBundler:
             try:
                 cal_extensions = self.get_cal_extensions(exposure)
             except:
-                logger.error('Failed to find calibration files in header, cannot create %s', product_2d.filename)
+                log.error('Failed to find calibration files in header, cannot create %s', product_2d.filename)
             else:
                 return [
                     self.get_primary_header(exposure),
@@ -158,7 +146,7 @@ class ProductBundler:
                 ]
 
         product_2d = exposure.final_product('e')
-        self.produce_and_distribute(product_2d, config_builder)
+        self.produce(product_2d, config_builder)
 
     def create_pol_product(self, exposure):
         def wipe_snr(header):
@@ -179,7 +167,7 @@ class ProductBundler:
             try:
                 cal_extensions = self.get_cal_extensions(exposure, 'WaveAB', 'BlazeAB')
             except:
-                logger.error('Failed to find calibration files in header, cannot create %s', product_pol.filename)
+                log.error('Failed to find calibration files in header, cannot create %s', product_pol.filename)
             else:
                 return [
                     self.get_primary_header(exposure),
@@ -194,14 +182,13 @@ class ProductBundler:
 
         product_pol = exposure.final_product('p')
         self.produce_generalized(product_pol, config_builder, update_then_copy_input_files_to_primary)
-        self.distribute_file(product_pol)
 
     def create_tell_product(self, exposure):
         def config_builder():
             try:
                 cal_extensions = self.get_cal_extensions(exposure, 'WaveAB', 'BlazeAB')
             except:
-                logger.error('Failed to find calibration files in header, cannot create %s', product_tell.filename)
+                log.error('Failed to find calibration files in header, cannot create %s', product_tell.filename)
             else:
                 return [
                     self.get_primary_header(exposure),
@@ -211,14 +198,13 @@ class ProductBundler:
                 ]
 
         product_tell = exposure.final_product('t')
-        self.produce_and_distribute(product_tell, config_builder)
+        self.produce(product_tell, config_builder)
 
     def create_ccf_product(self, exposure, ccf_mask, telluric_corrected, fp):
         def fix_header(header):
             header.insert('CRVAL1', ('CRPIX1', 0))
 
         def update_primary_header(header):
-            self.set_post_processing_headers(header)
             fix_header(header)
 
         def update_hdu(hdu):
@@ -238,11 +224,6 @@ class ProductBundler:
 
         product_ccf = exposure.final_product('v')
         self.produce_generalized(product_ccf, config_builder, None)
-        self.distribute_file(product_ccf)
-
-    def produce_and_distribute(self, path, config_builder):
-        self.produce(path, config_builder)
-        self.distribute_file(path)
 
     def produce(self, path, config_builder):
         self.produce_generalized(path, config_builder, hdulist_operation=self.product_header_update)
@@ -266,7 +247,7 @@ class ProductBundler:
 
     def product_header_update(self, hdulist):
         if len(hdulist) <= 1:
-            logger.error('Trying to create product primary HDU with no extensions')
+            log.error('Trying to create product primary HDU with no extensions')
             return
         primary_header = hdulist[0].header
         ext_header = hdulist[1].header
@@ -282,7 +263,6 @@ class ProductBundler:
             dupe_keys = verify_duplicate_cards(extension.header, primary_header.items())
             remove_keys(extension.header, dupe_keys)
         self.add_extension_description(hdulist)
-        self.set_post_processing_headers(primary_header)
 
     @staticmethod
     def add_extension_description(hdulist):
@@ -337,37 +317,15 @@ class ProductBundler:
         return np.linspace(start, end, num=n, endpoint=False)
 
     def create_mef(self, mef_config, output_file):
-        if self.create:
-            logger.info('Creating MEF %s', output_file)
-            try:
-                hdu_list = mef_config.create_hdu_list()
-            except FileNotFoundError as err:
-                logger.error('Creation of %s failed: unable to open file %s', output_file, err.filename)
-            except:
-                logger.error('Creation of %s failed', output_file, exc_info=True)
-            else:
-                hdu_list.writeto(output_file, overwrite=True)
-
-    def distribute_file(self, file):
-        if self.distribute:
-            subdir = 'quicklook' if self.realtime else 'reduced'
-            try:
-                new_file = distribute_file(file, subdir)
-            except FileNotFoundError as err:
-                logger.error('Distribution of %s failed: unable to open file %s', file, err.filename)
-            except:
-                logger.error('Distribution of %s failed', file, exc_info=True)
-            else:
-                logger.info('Distributing %s', new_file)
-
-    def set_post_processing_headers(self, header):
-        exposure_statuses = self.exposures_status
-        if exposure_statuses:
-            if len(exposure_statuses) == 1:
-                header_dict = DatabaseHeaderConverter.exp_status_db_to_header(exposure_statuses[0])
-            else:
-                header_dict =  DatabaseHeaderConverter.seq_status_db_to_header(exposure_statuses)
-            header.update(header_dict)
+        log.info('Creating MEF %s', output_file)
+        try:
+            hdu_list = mef_config.create_hdu_list()
+        except FileNotFoundError as err:
+            log.error('Creation of %s failed: unable to open file %s', output_file, err.filename)
+        except:
+            log.error('Creation of %s failed', output_file, exc_info=True)
+        else:
+            hdu_list.writeto(output_file, overwrite=True)
 
 
 def get_card(header, keyword):
@@ -389,5 +347,5 @@ def verify_duplicate_cards(header, cards):
             dupe_keys.append(key)
         else:
             extname = header.get('EXTNAME')
-            logger.warning('Header key %s expected to be duplicate in extension %s but was not', key, extname)
+            log.warning('Header key %s expected to be duplicate in extension %s but was not', key, extname)
     return dupe_keys

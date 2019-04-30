@@ -1,23 +1,23 @@
 from pathlib import Path
-
-from envloader import input_root_directory, reduced_root_directory, temp_root_directory
-
+from .constants import ROOT_DATA_DIRECTORIES
 
 class Night:
+    root_data_directories = ROOT_DATA_DIRECTORIES
+
     def __init__(self, night):
         self.night = night
 
     @property
     def input_directory(self):
-        return Path(input_root_directory, self.night)
+        return Path(self.root_data_directories.input, self.night)
 
     @property
     def temp_directory(self):
-        return Path(temp_root_directory, self.night)
+        return Path(self.root_data_directories.tmp, self.night)
 
     @property
     def reduced_directory(self):
-        return Path(reduced_root_directory, self.night)
+        return Path(self.root_data_directories.reduced, self.night)
 
 
 class Exposure:
@@ -36,11 +36,6 @@ class Exposure:
     @property
     def preprocessed(self):
         return Path(self.temp_directory, self.raw.name.replace('.fits', '_pp.fits'))
-
-    def saved_calibration(self, product, fiber=None):
-        if fiber:
-            product += '_' + fiber
-        return Path(self.reduced_directory, self.night + '_' + self.reduced(product).name)
 
     def s1d(self, fiber):
         return self.extracted_product('s1d', fiber)

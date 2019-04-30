@@ -1,7 +1,12 @@
 #!/data/spirou/venv/bin/python3 -u
 
 import argparse
-import logger
+import datetime
+
+from drsloader import DrsLoader
+from listener import run_listener
+from logger import logger, configure_logger
+from realtime import realtime
 
 
 class StepsParser:
@@ -117,25 +122,23 @@ if __name__ == '__main__':
 
     log_files = []
     if args.logfile:
-        log_files.append(logger.LogFile(args.logfile, args.logfilelevel))
+        log_files.append((args.logfile, args.logfilelevel))
     if args.command == 'listener':
-        import datetime
         timestamp = datetime.datetime.now().strftime("error-report-%Y%m%d-%H%M%S")
-        log_files.append(logger.LogFile(timestamp, 'ERROR'))
-    logger.configure(console_level=args.loglevel, log_files=log_files)
+        log_files.append((timestamp, 'ERROR'))
+    configure_logger(logger, console_level=args.loglevel, log_files=log_files)
 
     if args.config is not None:
-        import envconfig
-        envconfig.set_drs_config_subdir(args.config)
+        DrsLoader.set_drs_config_subdir(args.config)
+
     if args.command == 'realtime':
-        from realtime import realtime
         realtime(args.filepath)
     elif args.command == 'listener':
-        from listener import run_listener
         run_listener(str(args.port), int(args.threads))
     else:
-        from drstrigger import DrsTrigger
-        from commandmap import ObjectSteps, Steps, CcfParams
+        loader = DrsLoader()
+        cfht = loader.get_loaded_trigger_module()
+        from cfht import CfhtDrsTrigger as DrsTrigger, ObjectSteps, Steps, CcfParams
         if args.command == 'version':
             if args.drs:
                 print(DrsTrigger.drs_version())
