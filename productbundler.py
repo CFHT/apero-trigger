@@ -1,5 +1,6 @@
 import textwrap
 from collections import defaultdict, OrderedDict
+from pathlib import Path
 
 import numpy as np
 from astropy.io import fits
@@ -8,7 +9,6 @@ from dbinterface import DatabaseHeaderConverter
 from distribution import distribute_file
 from drswrapper import FIBER_LIST
 from logger import logger
-from pathhandler import Path, Night
 
 
 class BinTableConfig:
@@ -72,8 +72,7 @@ class HDUConfig:
         return hdu
 
     def open_hdu(self):
-        input_file = self.path.fullpath
-        hdu_list = fits.open(input_file)
+        hdu_list = fits.open(self.path)
         hdu = hdu_list[self.extension]
         return hdu
 
@@ -119,24 +118,11 @@ class ProductBundler:
     def set_sequence_status(self, exposures_status):
         self.exposures_status = exposures_status
 
-    def create_spec_product(self, path):
-        self.create_1d_spectra_product(path)
-        self.create_2d_spectra_product(path)
+    def create_spec_product(self, exposure):
+        self.create_1d_spectra_product(exposure)
+        self.create_2d_spectra_product(exposure)
 
-    def produce_and_distribute(self, path, config_builder):
-        self.produce(path, config_builder)
-        self.distribute_file(path)
-
-    def produce(self, path, config_builder):
-        self.produce_generalized(path, config_builder, hdulist_operation=self.product_header_update)
-
-    def produce_generalized(self, path, config_builder, hdulist_operation=None):
-        if self.create:
-            hdu_configs = config_builder()
-            mef_config = MEFConfig(hdu_configs, hdulist_operation=hdulist_operation)
-            self.create_mef(mef_config, path.fullpath)
-
-    def create_1d_spectra_product(self, path):
+    def create_1d_spectra_product(self, exposure):
         def update_hdu(hdu):
             flux = hdu.data
             errs = np.full(len(flux), np.nan)
@@ -146,34 +132,35 @@ class ProductBundler:
         def config_builder():
             bin_table_config = BinTableConfig(column_names=['Flux', 'FluxErr', 'Wave'],
                                               column_units=['Relative Flux', 'Relative Flux', 'nm'])
-            extensions = [HDUConfig(fiber, path.s1d(fiber), hdu_operation=update_hdu,
-                                    bin_table=bin_table_config) for fiber in FIBER_LIST]
+            extensions = [HDUConfig(fiber, exposure.s1d(fiber), hdu_operation=update_hdu, bin_table=bin_table_config)
+                          for fiber in FIBER_LIST]
             return [
-                self.get_primary_header(path),
+                self.get_primary_header(exposure),
                 *extensions
             ]
 
-        product_1d = path.final_product('s')
+        product_1d = exposure.final_product('s')
         self.produce(product_1d, config_builder)
 
-    def create_2d_spectra_product(self, path):
+    def create_2d_spectra_product(self, exposure):
         def config_builder():
-            flux_extensions = [HDUConfig('Flux' + fiber, path.e2ds(fiber, flat_fielded=True)) for fiber in FIBER_LIST]
+            flux_extensions = [HDUConfig('Flux' + fiber, exposure.e2ds(fiber, flat_fielded=True))
+                               for fiber in FIBER_LIST]
             try:
-                cal_extensions = self.get_cal_extensions(path)
+                cal_extensions = self.get_cal_extensions(exposure)
             except:
                 logger.error('Failed to find calibration files in header, cannot create %s', product_2d.filename)
             else:
                 return [
-                    self.get_primary_header(path),
+                    self.get_primary_header(exposure),
                     *flux_extensions,
                     *cal_extensions
                 ]
 
-        product_2d = path.final_product('e')
+        product_2d = exposure.final_product('e')
         self.produce_and_distribute(product_2d, config_builder)
 
-    def create_pol_product(self, path):
+    def create_pol_product(self, exposure):
         def wipe_snr(header):
             for i in range(0, 49):
                 key = 'SNR' + str(i)
@@ -190,43 +177,43 @@ class ProductBundler:
 
         def config_builder():
             try:
-                cal_extensions = self.get_cal_extensions(path, 'WaveAB', 'BlazeAB')
+                cal_extensions = self.get_cal_extensions(exposure, 'WaveAB', 'BlazeAB')
             except:
                 logger.error('Failed to find calibration files in header, cannot create %s', product_pol.filename)
             else:
                 return [
-                    self.get_primary_header(path),
-                    HDUConfig('Pol', path.reduced('e2ds_pol'), header_operation=wipe_snr),
-                    HDUConfig('PolErr', path.reduced('e2ds_pol'), extension=1),
-                    HDUConfig('StokesI', path.reduced('e2ds_AB_StokesI'), header_operation=wipe_snr),
-                    HDUConfig('StokesIErr', path.reduced('e2ds_AB_StokesI'), extension=1),
-                    HDUConfig('Null1', path.reduced('e2ds_null1_pol'), header_operation=wipe_snr),
-                    HDUConfig('Null2', path.reduced('e2ds_null2_pol'), header_operation=wipe_snr),
+                    self.get_primary_header(exposure),
+                    HDUConfig('Pol', exposure.reduced('e2ds_pol'), header_operation=wipe_snr),
+                    HDUConfig('PolErr', exposure.reduced('e2ds_pol'), extension=1),
+                    HDUConfig('StokesI', exposure.reduced('e2ds_AB_StokesI'), header_operation=wipe_snr),
+                    HDUConfig('StokesIErr', exposure.reduced('e2ds_AB_StokesI'), extension=1),
+                    HDUConfig('Null1', exposure.reduced('e2ds_null1_pol'), header_operation=wipe_snr),
+                    HDUConfig('Null2', exposure.reduced('e2ds_null2_pol'), header_operation=wipe_snr),
                     *cal_extensions
                 ]
 
-        product_pol = path.final_product('p')
+        product_pol = exposure.final_product('p')
         self.produce_generalized(product_pol, config_builder, update_then_copy_input_files_to_primary)
         self.distribute_file(product_pol)
 
-    def create_tell_product(self, path):
+    def create_tell_product(self, exposure):
         def config_builder():
             try:
-                cal_extensions = self.get_cal_extensions(path, 'WaveAB', 'BlazeAB')
+                cal_extensions = self.get_cal_extensions(exposure, 'WaveAB', 'BlazeAB')
             except:
                 logger.error('Failed to find calibration files in header, cannot create %s', product_tell.filename)
             else:
                 return [
-                    self.get_primary_header(path),
-                    HDUConfig('FluxAB', path.e2ds('AB', telluric_corrected=True, flat_fielded=True)),
+                    self.get_primary_header(exposure),
+                    HDUConfig('FluxAB', exposure.e2ds('AB', telluric_corrected=True, flat_fielded=True)),
                     *cal_extensions,
-                    HDUConfig('Recon', path.e2ds('AB', telluric_reconstruction=True, flat_fielded=True))
+                    HDUConfig('Recon', exposure.e2ds('AB', telluric_reconstruction=True, flat_fielded=True))
                 ]
 
-        product_tell = path.final_product('t')
+        product_tell = exposure.final_product('t')
         self.produce_and_distribute(product_tell, config_builder)
 
-    def create_ccf_product(self, path, ccf_mask, telluric_corrected, fp):
+    def create_ccf_product(self, exposure, ccf_mask, telluric_corrected, fp):
         def fix_header(header):
             header.insert('CRVAL1', ('CRPIX1', 0))
 
@@ -241,7 +228,7 @@ class ProductBundler:
             fix_header(hdu.header)
 
         def config_builder():
-            ccf_path = path.ccf('AB', ccf_mask, telluric_corrected=telluric_corrected, fp=fp)
+            ccf_path = exposure.ccf('AB', ccf_mask, telluric_corrected=telluric_corrected, fp=fp)
             bin_table_config = BinTableConfig(column_names=['Velocity'] + self.get_default_columns() + ['Combined'],
                                               column_units=['km/s'] + [None] * 50)
             return [
@@ -249,17 +236,30 @@ class ProductBundler:
                 HDUConfig('CCF', ccf_path, hdu_operation=update_hdu, bin_table=bin_table_config)
             ]
 
-        product_ccf = path.final_product('v')
+        product_ccf = exposure.final_product('v')
         self.produce_generalized(product_ccf, config_builder, None)
         self.distribute_file(product_ccf)
 
-    def get_primary_header(self, path):
+    def produce_and_distribute(self, path, config_builder):
+        self.produce(path, config_builder)
+        self.distribute_file(path)
+
+    def produce(self, path, config_builder):
+        self.produce_generalized(path, config_builder, hdulist_operation=self.product_header_update)
+
+    def produce_generalized(self, path, config_builder, hdulist_operation=None):
+        if self.create:
+            hdu_configs = config_builder()
+            mef_config = MEFConfig(hdu_configs, hdulist_operation=hdulist_operation)
+            self.create_mef(mef_config, path.fullpath)
+
+    def get_primary_header(self, exposure):
         def remove_new_keys(header):
             remove_keys(header, ('DRSPID', 'INF1000', 'QCC', 'QCC000N',
                                  'QCC001N', 'QCC001V', 'QCC001L', 'QCC001P',
                                  'QCC002N', 'QCC002V', 'QCC002L', 'QCC002P'))
 
-        return HDUConfig(None, path.preprocessed, primary_header_only=True, header_operation=remove_new_keys)
+        return HDUConfig(None, exposure.preprocessed, primary_header_only=True, header_operation=remove_new_keys)
 
     def get_default_columns(self):
         return ['Order' + str(i) for i in range(0, 49)]
@@ -291,7 +291,7 @@ class ProductBundler:
         for line in textwrap.wrap(description, 71):
             hdulist[0].header.insert('FILENAME', ('COMMENT', line))
 
-    def get_cal_extensions(self, path, *args):
+    def get_cal_extensions(self, exposure, *args):
         def keep_key(key):
             return key in ('EXTNAME', 'NAXIS', 'NAXIS1', 'NAXIS2') or key.startswith('INF') or key.startswith('CDB')
 
@@ -303,19 +303,19 @@ class ProductBundler:
                 return cleanup_keys
             return None
 
-        cal_path_dict = self.get_cal_paths(path)
+        cal_path_dict = self.get_cal_paths(exposure)
         ext_names = args if args else cal_path_dict.keys()
         return [HDUConfig(name, cal_path_dict[name], header_operation=extension_operation(name)) for name in ext_names]
 
-    def get_cal_paths(self, path):
+    def get_cal_paths(self, exposure):
         headers_per_fiber = defaultdict(OrderedDict)
         for fiber in FIBER_LIST:
-            source_file = path.e2ds(fiber, flat_fielded=True).fullpath
+            source_file = exposure.e2ds(fiber, flat_fielded=True)
             source_header = fits.open(source_file)[0].header
             for keyword in ['CDBWAVE', 'CDBBLAZE']:
                 headers_per_fiber[keyword][fiber] = source_header[keyword]
         extensions = OrderedDict()
-        reduced_directory = Night(path.night).reduced_directory
+        reduced_directory = exposure.reduced_directory
         for fiber in FIBER_LIST:
             filename = headers_per_fiber['CDBWAVE'][fiber]
             extensions['Wave' + fiber] = Path(reduced_directory, filename)
@@ -348,9 +348,8 @@ class ProductBundler:
             else:
                 hdu_list.writeto(output_file, overwrite=True)
 
-    def distribute_file(self, path):
+    def distribute_file(self, file):
         if self.distribute:
-            file = path.fullpath
             subdir = 'quicklook' if self.realtime else 'reduced'
             try:
                 new_file = distribute_file(file, subdir)

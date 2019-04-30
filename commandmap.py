@@ -1,4 +1,3 @@
-import os
 import pickle
 from collections import defaultdict, namedtuple
 
@@ -7,7 +6,7 @@ from astropy.io import fits
 from dbinterface import QsoDatabase, DatabaseHeaderConverter
 from drswrapper import DRS, FIBER_LIST, CcfParams
 from logger import logger
-from pathhandler import PathHandler
+from pathhandler import Exposure
 from productbundler import ProductBundler
 
 CACHE_FILE = '.drstrigger.cache'
@@ -86,19 +85,19 @@ class BaseCommandMap(object):
         except (OSError, IOError):
             self.__trigger_cache = {}
 
-    def set_cached_file(self, path, key):
-        self.__trigger_cache[key] = path.raw.filename
+    def set_cached_exposure(self, exposure, key):
+        self.__trigger_cache[key] = exposure.raw.name
         self.__save_cache()
 
-    def get_cached_file(self, night, key):
-        return PathHandler(night, self.__trigger_cache[key])
+    def get_cached_exposure(self, night, key):
+        return Exposure(night, self.__trigger_cache[key])
 
-    def set_cached_sequence(self, paths, key):
-        self.__trigger_cache[key] = [path.raw.filename for path in paths]
+    def set_cached_sequence(self, exposures, key):
+        self.__trigger_cache[key] = [exposure.raw.name for exposure in exposures]
         self.__save_cache()
 
     def get_cached_sequence(self, night, key):
-        return [PathHandler(night, path) for path in self.__trigger_cache[key]]
+        return [Exposure(night, filename) for filename in self.__trigger_cache[key]]
 
     def get_command(self, config):
         return self.__commands[config]
@@ -109,11 +108,11 @@ class PreprocessCommandMap(BaseCommandMap):
         commands = defaultdict(lambda: self.__preprocess, {})
         super().__init__(commands, steps, trace, realtime)
 
-    def __preprocess(self, path):
+    def __preprocess(self, exposure):
         if self.steps.preprocess:
-            return self.drs.cal_preprocess(path)
+            return self.drs.cal_preprocess(exposure)
         else:
-            return os.path.exists(path.preprocessed.fullpath)
+            return exposure.preprocessed.exists()
 
 
 class ExposureCommandMap(BaseCommandMap):
@@ -137,71 +136,71 @@ class ExposureCommandMap(BaseCommandMap):
         if self.ccf_params is None:
             self.ccf_params = CcfParams('masque_sept18_andres_trans50.mas', 0, 200, 1)
 
-    def __unknown(self, path):
-        logger.warning('Unrecognized DPRTYPE, skipping exposure %s', path.preprocessed.filename)
+    def __unknown(self, exposure):
+        logger.warning('Unrecognized DPRTYPE, skipping exposure %s', exposure.preprocessed.name)
         return None
 
-    def __do_nothing(self, path):
+    def __do_nothing(self, exposure):
         return None
 
-    def __extract_object(self, path):
+    def __extract_object(self, exposure):
         if self.steps.objects.extract:
-            self.drs.cal_extract_RAW(path)
+            self.drs.cal_extract_RAW(exposure)
         if self.steps.objects.products:
-            self.bundler.set_exposure_status(self.database.get_exposure(path.odometer))
-        self.bundler.create_spec_product(path)
+            self.bundler.set_exposure_status(self.database.get_exposure(exposure.odometer))
+        self.bundler.create_spec_product(exposure)
 
-    def __telluric_correction(self, path):
+    def __telluric_correction(self, exposure):
         if self.steps.objects.fittellu:
             try:
-                result = self.drs.obj_fit_tellu(path)
+                result = self.drs.obj_fit_tellu(exposure)
                 telluric_corrected = result is not None
             except:
                 telluric_corrected = False
         else:
-            expected_telluric_path = path.e2ds('AB', telluric_corrected=True, flat_fielded=True)
-            telluric_corrected = os.path.exists(expected_telluric_path.fullpath)
-        self.bundler.create_tell_product(path)
+            expected_telluric_path = exposure.e2ds('AB', telluric_corrected=True, flat_fielded=True)
+            telluric_corrected = expected_telluric_path.exists()
+        self.bundler.create_tell_product(exposure)
         return telluric_corrected
 
-    def __ccf(self, path, telluric_corrected, fp):
+    def __ccf(self, exposure, telluric_corrected, fp):
         if self.steps.objects.ccf:
-            self.drs.cal_CCF_E2DS(path, self.ccf_params, telluric_corrected=telluric_corrected, fp=fp)
-        self.bundler.create_ccf_product(path, self.ccf_params.mask, telluric_corrected=telluric_corrected, fp=fp)
+            self.drs.cal_CCF_E2DS(exposure, self.ccf_params, telluric_corrected=telluric_corrected, fp=fp)
+        self.bundler.create_ccf_product(exposure, self.ccf_params.mask, telluric_corrected=telluric_corrected, fp=fp)
 
-    def __extract_normal_obj(self, path, fp):
-        self.__extract_object(path)
-        telluric_corrected = self.__telluric_correction(path)
-        self.__ccf(path, telluric_corrected, fp=fp)
+    def __extract_normal_obj(self, exposure, fp):
+        self.__extract_object(exposure)
+        telluric_corrected = self.__telluric_correction(exposure)
+        self.__ccf(exposure, telluric_corrected, fp=fp)
         if self.realtime or self.steps.objects.database:
-            ccf_path = path.ccf('AB', self.ccf_params.mask, telluric_corrected=telluric_corrected, fp=fp).fullpath
-            self.__update_db_with_headers(path, ccf_path)
+            ccf_path = exposure.ccf('AB', self.ccf_params.mask, telluric_corrected=telluric_corrected, fp=fp)
+            self.__update_db_with_headers(exposure, ccf_path)
 
-    def __extract_normal_obj_dark(self, path):
-        self.__extract_normal_obj(path, fp=False)
+    def __extract_normal_obj_dark(self, exposure):
+        self.__extract_normal_obj(exposure, fp=False)
 
-    def __extract_normal_obj_fp(self, path):
-        self.__extract_normal_obj(path, fp=True)
+    def __extract_normal_obj_fp(self, exposure):
+        self.__extract_normal_obj(exposure, fp=True)
 
-    def __extract_telluric_standard(self, path):
-        self.__extract_object(path)
+    def __extract_telluric_standard(self, exposure):
+        self.__extract_object(exposure)
         if self.steps.objects.mktellu:
             pass # need to update this to work with new creation model
-            # self.drs.obj_mk_tellu(path)
+            # self.drs.obj_mk_tellu(exposure)
         if self.realtime or self.steps.objects.database:
-            self.__update_db_with_headers(path)
+            self.__update_db_with_headers(exposure)
 
-    def __extract_sky(self, path):
-        self.__extract_object(path)
+    def __extract_sky(self, exposure):
+        self.__extract_object(exposure)
         if self.realtime or self.steps.objects.database:
-            self.__update_db_with_headers(path)
+            self.__update_db_with_headers(exposure)
 
-    def __update_db_with_headers(self, path, ccf_fullpath=None):
-        db_headers = {'obsid': str(path.odometer)}
-        with fits.open(path.e2ds('AB').fullpath) as hdu_list:
+    def __update_db_with_headers(self, exposure, ccf_path=None):
+        db_headers = {'obsid': str(exposure.odometer)}
+        with fits.open(exposure.e2ds('AB')) as hdu_list:
             db_headers.update(DatabaseHeaderConverter.extracted_header_to_db(hdu_list[0].header))
-        if ccf_fullpath:
-            with fits.open(ccf_fullpath) as hdu_list:
+        if ccf_path:
+            with fits.open(ccf_path) as hdu_list:
                 db_headers.update(DatabaseHeaderConverter.ccf_header_to_db(hdu_list[0].header))
         self.database.send_pipeline_headers(db_headers)
 
@@ -230,36 +229,36 @@ class SequenceCommandMap(BaseCommandMap):
         })
         super().__init__(commands, steps, trace, realtime)
 
-    def __unknown(self, paths):
+    def __unknown(self, exposures):
         logger.warning('Unrecognized DPRTYPE, skipping sequence %s',
-                       ' '.join([path.preprocessed.filename for path in paths]))
+                       ' '.join([exposure.preprocessed.name for exposure in exposures]))
         return None
 
     def __do_nothing(self, path):
         return None
 
-    def __dark(self, paths):
+    def __dark(self, exposures):
         if self.steps.calibrations:
-            result = self.drs.cal_DARK(paths)
-            last_dark = paths[-1]
-            self.set_cached_file(last_dark, LAST_DARK_KEY)
+            result = self.drs.cal_DARK(exposures)
+            last_dark = exposures[-1]
+            self.set_cached_exposure(last_dark, LAST_DARK_KEY)
             return result
 
-    def __dark_flat(self, paths):
+    def __dark_flat(self, exposures):
         if self.steps.calibrations:
-            self.set_cached_sequence(paths, DARK_FLAT_QUEUE_KEY)
+            self.set_cached_sequence(exposures, DARK_FLAT_QUEUE_KEY)
 
-    def __flat_dark(self, paths):
+    def __flat_dark(self, exposures):
         if self.steps.calibrations:
-            self.set_cached_sequence(paths, FLAT_DARK_QUEUE_KEY)
+            self.set_cached_sequence(exposures, FLAT_DARK_QUEUE_KEY)
 
-    def __flat(self, paths):
+    def __flat(self, exposures):
         if self.steps.calibrations:
-            self.set_cached_sequence(paths, FLAT_QUEUE_KEY)
+            self.set_cached_sequence(exposures, FLAT_QUEUE_KEY)
             # Generate bad pixel mask using last flat and last dark
-            last_flat = paths[-1]
+            last_flat = exposures[-1]
             night = last_flat.night
-            last_dark = self.get_cached_file(night, LAST_DARK_KEY)
+            last_dark = self.get_cached_exposure(night, LAST_DARK_KEY)
             assert last_dark is not None, 'Need a known DARK file for cal_BADPIX'
             self.drs.cal_BADPIX(last_flat, last_dark)
             # Process remaining loc queues
@@ -267,58 +266,59 @@ class SequenceCommandMap(BaseCommandMap):
             self.__process_cached_loc_queue(night, FLAT_DARK_QUEUE_KEY)
 
     def __process_cached_loc_queue(self, night, cache_key):
-        paths = self.get_cached_sequence(night, cache_key)
-        if paths:
-            self.drs.cal_loc_RAW(paths)
+        exposures = self.get_cached_sequence(night, cache_key)
+        if exposures:
+            self.drs.cal_loc_RAW(exposures)
         self.set_cached_sequence([], cache_key)
-        return paths
+        return exposures
 
     def __process_cached_flat_queue(self, night):
         if self.steps.calibrations:
-            flat_paths = self.get_cached_sequence(night, FLAT_QUEUE_KEY)
-            if flat_paths:
-                self.drs.cal_FF_RAW(flat_paths)
+            flat_exposures = self.get_cached_sequence(night, FLAT_QUEUE_KEY)
+            if flat_exposures:
+                self.drs.cal_FF_RAW(flat_exposures)
                 self.set_cached_sequence([], FLAT_QUEUE_KEY)
-                return flat_paths
+                return flat_exposures
 
-    def __fabry_perot(self, paths):
+    def __fabry_perot(self, exposures):
         if self.steps.calibrations:
-            self.set_cached_sequence(paths, FP_QUEUE_KEY)
+            self.set_cached_sequence(exposures, FP_QUEUE_KEY)
 
-    def __process_cached_fp_queue(self, hc_path):
+    def __process_cached_fp_queue(self, hc_exposure):
         if self.steps.calibrations:
-            fp_paths = self.get_cached_sequence(hc_path.night, FP_QUEUE_KEY)
-            if fp_paths:
-                self.drs.cal_SLIT(fp_paths)
-                self.drs.cal_SHAPE(hc_path, fp_paths)
-                self.__process_cached_flat_queue(fp_paths[0].night)  # Can finally flat field once we have the tilt
-                # for fp_path in fp_paths:
-                #     self.drs.cal_extract_RAW(fp_path)
-                self.drs.cal_extract_RAW(fp_paths[-1])
+            fp_exposures = self.get_cached_sequence(hc_exposure.night, FP_QUEUE_KEY)
+            if fp_exposures:
+                self.drs.cal_SLIT(fp_exposures)
+                self.drs.cal_SHAPE(hc_exposure, fp_exposures)
+                self.__process_cached_flat_queue(fp_exposures[0].night)  # Can finally flat field once we have the tilt
+                # for fp_exposure in fp_exposures:
+                #     self.drs.cal_extract_RAW(fp_exposure)
+                self.drs.cal_extract_RAW(fp_exposures[-1])
                 self.set_cached_sequence([], FP_QUEUE_KEY)
-            return fp_paths
+            return fp_exposures
 
-    def __hc_one(self, paths):
+    def __hc_one(self, exposures):
         if self.steps.calibrations:
-            last_hc = paths[-1]
-            fp_paths = self.__process_cached_fp_queue(last_hc)
-            if fp_paths:
-                last_fp = fp_paths[-1]
+            last_hc = exposures[-1]
+            fp_exposures = self.__process_cached_fp_queue(last_hc)
+            if fp_exposures:
+                last_fp = fp_exposures[-1]
                 self.drs.cal_extract_RAW(last_hc)
                 self.__wave(last_hc, last_fp)
 
-    def __wave(self, hc_path, fp_path):
+    def __wave(self, hc_exposure, fp_exposure):
         if self.steps.calibrations:
-            assert fp_path is not None, 'Need an extracted FP file for cal_WAVE'
+            assert fp_exposure is not None, 'Need an extracted FP file for cal_WAVE'
             for fiber in FIBER_LIST:
-                self.drs.cal_HC_E2DS(hc_path, fiber)
-                self.drs.cal_WAVE_E2DS(fp_path, hc_path, fiber)
+                self.drs.cal_HC_E2DS(hc_exposure, fiber)
+                self.drs.cal_WAVE_E2DS(fp_exposure, hc_exposure, fiber)
 
-    def __polar(self, paths):
-        if len(paths) < 2:
+    def __polar(self, exposures):
+        if len(exposures) < 2:
             return
         if self.steps.objects.pol:
-            self.drs.pol(paths)
+            self.drs.pol(exposures)
         if self.steps.objects.products:
-            self.bundler.set_sequence_status(self.database.get_exposure_range(paths[0].odometer, paths[-1].odometer))
-        self.bundler.create_pol_product(paths[0])
+            exposures_status = self.database.get_exposure_range(exposures[0].odometer, exposures[-1].odometer)
+            self.bundler.set_sequence_status(exposures_status)
+        self.bundler.create_pol_product(exposures[0])

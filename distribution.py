@@ -1,20 +1,19 @@
-import os
-import pathlib
 import shutil
+from pathlib import Path
 from threading import Thread
 
 from astropy.io import fits
 
+distribution_root = '/data/distribution/spirou/'
 
-def distribute_file(file, subdir, nonblocking=True):
-    hdu = fits.open(file)[0]
+def distribute_file(path, distribution_subdirectory, nonblocking=True):
+    hdu = fits.open(path)[0]
     run_id = hdu.header['RUNID']
-    dist_root = '/data/distribution/spirou/'
-    dist_dir = os.path.join(dist_root, run_id.lower(), subdir)
-    pathlib.Path(dist_dir).mkdir(parents=True, exist_ok=True)
+    distribution_dir = Path(distribution_root, run_id.lower(), distribution_subdirectory)
+    distribution_dir.mkdir(parents=True, exist_ok=True)
     if nonblocking:
-        Thread(target=shutil.copy2, args=[file, dist_dir]).start()
-        return os.path.join(dist_dir, os.path.basename(file))
+        Thread(target=shutil.copy2, args=[path, distribution_dir]).start()
+        return distribution_dir.joinpath(path.name)
     else:
-        new_file = shutil.copy2(file, dist_dir)
-        return new_file
+        new_file = shutil.copy2(path, distribution_dir)
+        return Path(new_file)

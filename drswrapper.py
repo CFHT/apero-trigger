@@ -46,58 +46,58 @@ class DRS:
         self.trace = trace
         self.realtime = realtime
 
-    def cal_preprocess(self, path):
-        return self.__logwrapper(cal_preprocess_spirou, path.night, path.raw.filename)
+    def cal_preprocess(self, exposure):
+        return self.__logwrapper(cal_preprocess_spirou, exposure.night, exposure.raw.name)
 
-    def cal_extract_RAW(self, path):
-        return self.__logwrapper(cal_extract_RAW_spirou, path.night, path.preprocessed.filename)
+    def cal_extract_RAW(self, exposure):
+        return self.__logwrapper(cal_extract_RAW_spirou, exposure.night, exposure.preprocessed.name)
 
-    def cal_DARK(self, paths):
-        return self.__sequence_logwrapper(cal_DARK_spirou, paths)
+    def cal_DARK(self, exposures):
+        return self.__sequence_logwrapper(cal_DARK_spirou, exposures)
 
-    def cal_BADPIX(self, flat_path, dark_path):
-        flat_file = flat_path.preprocessed.filename
-        dark_file = dark_path.preprocessed.filename
-        return self.__logwrapper(cal_BADPIX_spirou, flat_path.night, flat_file, dark_file)
+    def cal_BADPIX(self, flat_exposure, dark_exposure):
+        flat_file = flat_exposure.preprocessed.name
+        dark_file = dark_exposure.preprocessed.name
+        return self.__logwrapper(cal_BADPIX_spirou, flat_exposure.night, flat_file, dark_file)
 
-    def cal_loc_RAW(self, paths):
-        return self.__sequence_logwrapper(cal_loc_RAW_spirou, paths)
+    def cal_loc_RAW(self, exposures):
+        return self.__sequence_logwrapper(cal_loc_RAW_spirou, exposures)
 
-    def cal_FF_RAW(self, paths):
-        return self.__sequence_logwrapper(cal_FF_RAW_spirou, paths)
+    def cal_FF_RAW(self, exposures):
+        return self.__sequence_logwrapper(cal_FF_RAW_spirou, exposures)
 
-    def cal_SLIT(self, paths):
-        return self.__sequence_logwrapper(cal_SLIT_spirou, paths)
+    def cal_SLIT(self, exposures):
+        return self.__sequence_logwrapper(cal_SLIT_spirou, exposures)
 
-    def cal_SHAPE(self, hc_path, fp_paths):
-        night = hc_path.night
-        hc_file = hc_path.preprocessed.filename
-        fp_files = [fp_path.preprocessed.filename for fp_path in fp_paths]
+    def cal_SHAPE(self, hc_exposure, fp_exposures):
+        night = hc_exposure.night
+        hc_file = hc_exposure.preprocessed.name
+        fp_files = [fp_exposure.preprocessed.name for fp_exposure in fp_exposures]
         return self.__logwrapper(cal_SHAPE_spirou, night, hc_file, fp_files)
 
-    def cal_HC_E2DS(self, path, fiber):
-        file = path.e2ds(fiber).filename
-        return self.__logwrapper(cal_HC_E2DS_EA_spirou, path.night, file)
+    def cal_HC_E2DS(self, exposure, fiber):
+        file = exposure.e2ds(fiber).name
+        return self.__logwrapper(cal_HC_E2DS_EA_spirou, exposure.night, file)
 
-    def cal_WAVE_E2DS(self, fp_path, hc_path, fiber):
-        hc_file = hc_path.e2ds(fiber).filename
-        fp_file = fp_path.e2ds(fiber).filename
-        return self.__logwrapper(cal_WAVE_E2DS_EA_spirou, hc_path.night, fp_file, [hc_file])
+    def cal_WAVE_E2DS(self, fp_exposure, hc_exposure, fiber):
+        hc_file = hc_exposure.e2ds(fiber).name
+        fp_file = fp_exposure.e2ds(fiber).name
+        return self.__logwrapper(cal_WAVE_E2DS_EA_spirou, hc_exposure.night, fp_file, [hc_file])
 
-    def cal_CCF_E2DS(self, path, params, telluric_corrected, fp):
-        filename = path.e2ds('AB', telluric_corrected, flat_fielded=True).filename
+    def cal_CCF_E2DS(self, exposure, params, telluric_corrected, fp):
+        file = exposure.e2ds('AB', telluric_corrected, flat_fielded=True).name
         ccf_recipe = cal_CCF_E2DS_FP_spirou if fp else cal_CCF_E2DS_spirou
-        return self.__logwrapper(ccf_recipe, path.night, filename, params.mask, params.v0, params.range, params.step)
+        return self.__logwrapper(ccf_recipe, exposure.night, file, params.mask, params.v0, params.range, params.step)
 
-    def pol(self, paths):
-        input_files = [path.e2ds(fiber).filename for path in paths for fiber in ('A', 'B')]
-        return self.__logwrapper(pol_spirou, paths[0].night, input_files)
+    def pol(self, exposures):
+        input_files = [exposure.e2ds(fiber).name for exposure in exposures for fiber in ('A', 'B')]
+        return self.__logwrapper(pol_spirou, exposures[0].night, input_files)
 
-    def obj_mk_tellu(self, path):
-        return self.__logwrapper(obj_mk_tellu, path.night, [path.e2ds('AB', flat_fielded=True).filename])
+    def obj_mk_tellu(self, exposure):
+        return self.__logwrapper(obj_mk_tellu, exposure.night, [exposure.e2ds('AB', flat_fielded=True).name])
 
-    def obj_fit_tellu(self, path):
-        return self.__logwrapper(obj_fit_tellu, path.night, [path.e2ds('AB', flat_fielded=True).filename])
+    def obj_fit_tellu(self, exposure):
+        return self.__logwrapper(obj_fit_tellu, exposure.night, [exposure.e2ds('AB', flat_fielded=True).name])
 
     @staticmethod
     def version():
@@ -130,8 +130,8 @@ class DRS:
                 if self.__should_log_errors_to_director(module):
                     director_message('DRS command failed (exception): ' + command_string, level='warning')
 
-    def __sequence_logwrapper(self, module, paths):
-        return self.__logwrapper(module, paths[0].night, [path.preprocessed.filename for path in paths])
+    def __sequence_logwrapper(self, module, exposures):
+        return self.__logwrapper(module, exposures[0].night, [exposure.preprocessed.name for exposure in exposures])
 
     def __should_log_errors_to_director(self, module):
         ignore_modules = (cal_CCF_E2DS_spirou, cal_CCF_E2DS_FP_spirou, obj_mk_tellu, obj_fit_tellu, pol_spirou)

@@ -1,20 +1,21 @@
-import os, pickle
+import pickle
+from pathlib import Path
 
 from distribution import distribute_file
 from envconfig import sessiondir, set_drs_config_subdir
 set_drs_config_subdir('realtime')
 
 from logger import logger
-from pathhandler import PathHandler
+from pathhandler import Exposure
 from drstrigger import DrsTrigger
 from commandmap import Steps
 
 SEQUENCE_CACHE_FILE = '.sequence.cache'
 
 
-def realtime(rawpath):
+def realtime(raw_path):
     try:
-        night, file = setup_symlink(rawpath)
+        night, file = setup_symlink(raw_path)
         distribute_file(file, 'raw')
         trigger = DrsTrigger(Steps.all(), realtime=True)
         if not trigger.preprocess(night, file):
@@ -29,22 +30,21 @@ def realtime(rawpath):
         logger.error('Error during realtime processing', exc_info=True)
 
 
-def setup_symlink(rawpath):
-    rawdir, filename = os.path.split(rawpath)
-    if rawdir.startswith(sessiondir):
-        night = rawdir[len(sessiondir):]
-    else:
-        raise RuntimeError('Night directory should start with ' + sessiondir)
-    path = PathHandler(night, filename)
-    linkdir = path.input_directory
-    if not os.path.exists(linkdir):
-        os.makedirs(linkdir)
-    linkpath = path.raw.fullpath
+def setup_symlink(raw_path):
     try:
-        os.symlink(rawpath, linkpath)
+        relative_path = Path(raw_path).relative_to(sessiondir)
+    except ValueError:
+        raise RuntimeError('Night directory should start with ' + sessiondir)
+    night = relative_path.parent
+    filename = relative_path.name
+
+    link_path = Exposure(night, filename).raw
+    link_path.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        link_path.symlink_to(raw_path)
     except FileExistsError as e:
         pass
-    return night, linkpath
+    return night, link_path
 
 
 def load_sequence_cache():

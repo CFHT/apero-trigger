@@ -1,10 +1,6 @@
-import os, glob
-from collections import defaultdict
-from astropy.io import fits
-
 from logger import logger
 from commandmap import CommandMap
-from pathhandler import PathHandler
+from pathhandler import Exposure, Night
 from drswrapper import DRS
 from fileselector import sort_and_filter_files, HeaderChecker
 
@@ -18,18 +14,17 @@ class DrsTrigger:
         self.command_map = CommandMap(self.steps, trace, realtime)
 
     def __find_files(self, night, runid=None):
-        path_pattern = PathHandler(night, '*.fits').raw.fullpath
-        all_files = [file for file in glob.glob(path_pattern) if os.path.exists(file)]  # filter out broken symlinks
+        night_directory = Night(night).input_directory
+        all_files = [file for file in night_directory.glob('*.fits') if file.exists()]  # filter out broken symlinks
         files = sort_and_filter_files(all_files, self.steps, runid)  # Filter out unused input files ahead of time
         return files
 
     def __get_subrange(self, files, start_file, end_file):
         start_index, end_index = None, None
         for i, file in enumerate(files):
-            filename = os.path.basename(file)
-            if filename == start_file:
+            if file.name == start_file:
                 start_index = i
-            if filename == end_file:
+            if file.name == end_file:
                 end_index = i + 1
         if start_index is not None and end_index is not None:
             return files[start_index:end_index]
@@ -68,29 +63,29 @@ class DrsTrigger:
                 logger.error('Critical failure processing %s, skipping', file, exc_info=True)
 
     def preprocess(self, night, file):
-        path = PathHandler(night, file)
+        exposure = Exposure(night, file)
         try:
-            return self.command_map.preprocess_exposure(path)
+            return self.command_map.preprocess_exposure(exposure)
         except Exception as e:
-            raise RuntimeError('Error running pre-processing on', path.raw.fullpath, e)
+            raise RuntimeError('Error running pre-processing on', exposure.raw, e)
 
     def process_file(self, night, file):
-        path = PathHandler(night, file)
-        exposure_config = self.__exposure_config_from_file(path)
+        exposure = Exposure(night, file)
+        exposure_config = self.__read_exposure_config(exposure)
         try:
-            result = self.command_map.process_exposure(exposure_config, path, self.ccf_params)
+            result = self.command_map.process_exposure(exposure_config, exposure, self.ccf_params)
             return result
         except Exception as e:
-            raise RuntimeError('Error extracting', path.preprocessed.fullpath, e)
+            raise RuntimeError('Error extracting', exposure.preprocessed, e)
 
     def process_sequence(self, night, files):
-        paths = [PathHandler(night, file) for file in files]
-        sequence_config = self.__exposure_config_from_file(paths[0])
-        for path in paths:
-            exposure_config = self.__exposure_config_from_file(path)
+        exposures = [Exposure(night, file) for file in files]
+        sequence_config = self.__read_exposure_config(exposures[0])
+        for exposure in exposures:
+            exposure_config = self.__read_exposure_config(exposure)
             assert exposure_config == sequence_config, 'Exposure type changed mid-sequence'
         try:
-            result = self.command_map.process_sequence(sequence_config, paths)
+            result = self.command_map.process_sequence(sequence_config, exposures)
             return result
         except Exception as e:
             raise RuntimeError('Error processing sequence', files, e)
@@ -98,15 +93,15 @@ class DrsTrigger:
     # Appends file to current_sequence, and if sequence is now complete, returns it and clears current_sequence.
     @staticmethod
     def sequence_checker(night, current_sequence, file):
-        path = PathHandler(night, file)
+        exposure = Exposure(night, file)
         finished_sequence = None
-        header = HeaderChecker(path.raw.fullpath)
+        header = HeaderChecker(exposure.raw)
         exp_index, exp_total = header.get_exposure_index_and_total()
         if len(current_sequence) > 0 and exp_index == 1:
             logger.warning('Exposure number reset mid-sequence, ending previous sequence early: %s', current_sequence)
             finished_sequence = current_sequence.copy()
             current_sequence.clear()
-        current_sequence.append(path.raw.filename)
+        current_sequence.append(exposure.raw.name)
         if exp_index == exp_total:
             if finished_sequence:
                 logger.error('Unable to return early ended sequence: %s', current_sequence)
@@ -115,9 +110,8 @@ class DrsTrigger:
         return finished_sequence
 
     @staticmethod
-    def __exposure_config_from_file(path):
-        filename = path.preprocessed.fullpath
-        header = HeaderChecker(filename)
+    def __read_exposure_config(exposure):
+        header = HeaderChecker(exposure.preprocessed)
         dpr_type = header.get_dpr_type()
         if header.is_object():
             mode = 'SPEC' if header.is_spectroscopy() else 'POL'
@@ -131,7 +125,7 @@ class DrsTrigger:
             if dpr_type.startswith('OBJ_'):
                 return dpr_type.replace('OBJ', obj_type, 1)
             else:
-                logger.warning('Object exposure %s has DPRTYPE %s instead of OBJ', filename, dpr_type)
+                logger.warning('Object exposure %s has DPRTYPE %s instead of OBJ', exposure.preprocessed, dpr_type)
         return dpr_type
 
     @staticmethod

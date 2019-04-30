@@ -1,5 +1,5 @@
 import datetime
-from os import path
+from pathlib import Path
 
 from astropy.io import fits
 from logger import logger
@@ -7,8 +7,8 @@ from envconfig import drs_root
 
 
 def read_telluric_whitelist():
-    whitelist_file = path.join(drs_root, 'SpirouDRS/data/constants/tellu_whitelist.txt')
-    with open(whitelist_file) as f:
+    whitelist_file = Path(drs_root, 'SpirouDRS/data/constants/tellu_whitelist.txt')
+    with whitelist_file.open() as f:
         return set(line for line in f.read().splitlines() if not (line.startswith('#') or line == ''))
 
 
@@ -43,11 +43,11 @@ def is_desired_object(object_types, header):
 
 
 def has_object_extension(file):
-    return file.endswith('o.fits')
+    return file.name.endswith('o.fits')
 
 
 def has_calibration_extension(file):
-    return file.endswith(('a.fits', 'c.fits', 'd.fits', 'f.fits'))
+    return file.name.endswith(('a.fits', 'c.fits', 'd.fits', 'f.fits'))
 
 
 class HeaderChecker:
