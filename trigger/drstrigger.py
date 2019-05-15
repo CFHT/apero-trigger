@@ -1,10 +1,10 @@
-from .basedrstrigger import BaseDrsTrigger
-from .constants import DRS_VERSION
-from .fileselector import sort_and_filter_files
-from .log import log
-from .pathhandler import Night
+from multiprocessing import Pool
 
-TRIGGER_VERSION = '017'
+from .basedrstrigger import BaseDrsTrigger
+from .common import log
+from .drswrapper import DRS_VERSION
+from .fileselector import sort_and_filter_files
+from .pathhandler import Night, RootDirectories
 
 
 class DrsTrigger(BaseDrsTrigger):
@@ -12,23 +12,38 @@ class DrsTrigger(BaseDrsTrigger):
     def drs_version():
         return DRS_VERSION
 
-    @staticmethod
-    def trigger_version():
-        return TRIGGER_VERSION
+    def reduce_all_nights(self, num_processes=None, runid=None):
+        nights = self.__find_nights('*')
+        self.reduce_nights(nights, num_processes, runid)
+
+    def reduce_qrun(self, qrunid, num_processes=None, runid=None):
+        nights = self.__find_nights(qrunid + '-*')
+        self.reduce_nights(nights, num_processes, runid)
+
+    def reduce_nights(self, nights, num_processes=None, runid=None):
+        if num_processes:
+            pool = Pool(num_processes)
+            combined = [(item, runid) for item in nights]
+            pool.starmap(self.reduce_night, combined)
+        else:
+            for night in nights:
+                self.reduce_night(night, runid)
 
     def reduce_night(self, night, runid=None):
-        if self.realtime:
-            raise RuntimeError('Realtime mode not meant for reducing entire night!')
+        log.info('Processing night %s', night)
         files = self.__find_files(night, runid)
         self.reduce(night, files)
 
     def reduce_range(self, night, start_file, end_file):
-        if self.realtime:
-            raise RuntimeError('Realtime mode not meant for reducing entire fileset!')
         files = self.__find_files(night)
         subrange = self.__get_subrange(files, start_file, end_file)
         if subrange:
             self.reduce(night, subrange)
+
+    def __find_nights(self, night_pattern):
+        night_root = RootDirectories.input
+        nights = [night for night in night_root.glob(night_pattern) if night.is_dir()]
+        return sorted(nights)
 
     def __find_files(self, night, runid=None):
         night_directory = Night(night).input_directory

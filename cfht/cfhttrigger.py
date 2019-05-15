@@ -1,17 +1,21 @@
 from astropy.io import fits
 
-from trigger import AbstractCustomHandler, DrsTrigger, ExposureConfig, Steps
+from trigger import AbstractCustomHandler, DrsTrigger, ExposureConfig
 from .dbinterface import QsoDatabase, DatabaseHeaderConverter
 from .director import director_message
 from .distribution import ProductDistributorFactory
+from .steps import CfhtDrsSteps
+
+TRIGGER_VERSION = '018'
 
 
 class CfhtHandler(AbstractCustomHandler):
     def __init__(self, realtime, trace, distributing, updating_database):
         self.director_warnings = realtime
-        self.updating_database = updating_database
+        self.updating_database = updating_database and not trace
         self.distributor_factory = ProductDistributorFactory(trace, realtime, distributing)
         self.database = QsoDatabase() if distributing or updating_database else None
+        self.realtime = realtime
 
     def handle_recipe_failure(self, exposure_or_sequence, error):
         ignore_modules = ('cal_CCF_E2DS_spirou',
@@ -49,6 +53,14 @@ class CfhtHandler(AbstractCustomHandler):
                     exposures_status = None
                 distributor = self.distributor_factory.get_seqeunce_distributor(exposures_status)
                 distributor.distribute_product(sequence[0], 'p')
+        elif config.calibration:
+            if self.database:
+                for sequence in result.get('processed_sequences'):
+                    for exposure in sequence:
+                        pass # TODO: update database to mark exposure as processed
+            if self.realtime:
+                calibrations_complete = result.get('calibrations_complete')
+                # TODO: fire off calibrations done processing notices
 
     def __update_db_with_headers(self, exposure, exposure_path=None, ccf_path=None):
         if not self.updating_database:
@@ -64,12 +76,16 @@ class CfhtHandler(AbstractCustomHandler):
 
 
 class CfhtDrsTrigger(DrsTrigger):
-    def __init__(self, steps, realtime=False, trace=False, ccf_params=None):
-        super().__init__(steps, realtime, trace, ccf_params)
-        handler = CfhtHandler(realtime, trace, self.steps.objects.distribute, self.steps.objects.database)
+    @staticmethod
+    def trigger_version():
+        return TRIGGER_VERSION
+
+    def __init__(self, steps, ccf_params, realtime=False, trace=False):
+        super().__init__(steps, ccf_params, trace)
+        handler = CfhtHandler(realtime, trace, self.steps.distribute, self.steps.database)
         self.set_custom_handler(handler)
 
 
 class CfhtRealtimeTrigger(CfhtDrsTrigger):
-    def __init__(self):
-        super().__init__(Steps.all(), realtime=True)
+    def __init__(self, ccf_params):
+        super().__init__(CfhtDrsSteps.all(), ccf_params, realtime=True)

@@ -1,12 +1,9 @@
-from . import cfhttrigger
+from trigger import CcfParams, log
+from . import cfhttrigger, steps
 from .distribution import distribute_raw_file
-from trigger import pathhandler
-from trigger import ObjectSteps, Steps, CcfParams, log
 
 CfhtDrsTrigger = cfhttrigger.CfhtDrsTrigger
 CfhtRealtimeTrigger = cfhttrigger.CfhtRealtimeTrigger
-pathhandler = pathhandler
-ObjectSteps = ObjectSteps
-Steps = Steps
+CfhtDrsSteps = steps.CfhtDrsSteps
 CcfParams = CcfParams
 log = log

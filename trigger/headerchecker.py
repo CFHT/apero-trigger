@@ -1,6 +1,7 @@
 from astropy.io import fits
 
-from .log import log
+from .common import log
+
 
 class HeaderChecker:
     def __init__(self, file):

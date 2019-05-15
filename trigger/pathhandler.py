@@ -1,23 +1,28 @@
 from pathlib import Path
-from .constants import ROOT_DATA_DIRECTORIES
+from .drswrapper import ROOT_DATA_DIRECTORIES
+
+
+class RootDirectories:
+    input = Path(ROOT_DATA_DIRECTORIES.input)
+    temp = Path(ROOT_DATA_DIRECTORIES.tmp)
+    reduced = Path(ROOT_DATA_DIRECTORIES.reduced)
+
 
 class Night:
-    root_data_directories = ROOT_DATA_DIRECTORIES
-
     def __init__(self, night):
-        self.night = night
+        self.night = Path(night).name
 
     @property
     def input_directory(self):
-        return Path(self.root_data_directories.input, self.night)
+        return RootDirectories.input.joinpath(self.night)
 
     @property
     def temp_directory(self):
-        return Path(self.root_data_directories.tmp, self.night)
+        return RootDirectories.temp.joinpath(self.night)
 
     @property
     def reduced_directory(self):
-        return Path(self.root_data_directories.reduced, self.night)
+        return RootDirectories.reduced.joinpath(self.night)
 
 
 class Exposure:

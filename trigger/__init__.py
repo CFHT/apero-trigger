@@ -1,10 +1,9 @@
-from . import constants, drswrapper, exposureconfig, log, pathhandler, processor, basedrstrigger, drstrigger
+from . import exposureconfig, steps, basedrstrigger, drstrigger, common
 
-log = log.log
+log = common.log
+CcfParams = common.CcfParams
 
-CcfParams = drswrapper.CcfParams
-ObjectSteps = processor.ObjectSteps
-Steps = processor.Steps
+DrsSteps = steps.DrsSteps
 
 ExposureConfig = exposureconfig.ExposureConfig
 

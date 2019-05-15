@@ -1,9 +1,8 @@
 from abc import ABC, abstractmethod
 
-from .drswrapper import RecipeFailure
+from .common import log, RecipeFailure
 from .exposureconfig import ExposureConfig
 from .headerchecker import HeaderChecker
-from .log import log
 from .pathhandler import Exposure
 from .processor import Processor
 
@@ -23,18 +22,15 @@ class AbstractCustomHandler(ABC):
 
 
 class BaseDrsTrigger:
-    def __init__(self, steps, realtime=False, trace=False, ccf_params=None):
-        self.realtime = realtime
+    def __init__(self, steps, ccf_params, trace=False):
         self.steps = steps
-        self.processor = Processor(self.steps, trace, realtime, ccf_params)
+        self.processor = Processor(self.steps, ccf_params, trace)
         self.custom_handler = None
 
     def set_custom_handler(self, handler):
         self.custom_handler = handler
 
     def reduce(self, night, files_in_order):
-        if self.realtime:
-            raise RuntimeError('Realtime mode not meant for reducing entire fileset!')
         current_sequence = []
         for file in files_in_order:
             if not self.preprocess(night, file):
@@ -50,8 +46,9 @@ class BaseDrsTrigger:
 
     def preprocess(self, night, file):
         exposure = Exposure(night, file)
+        exposure_config = ExposureConfig.from_file(exposure.raw)
         try:
-            return self.processor.preprocess_exposure(exposure)
+            return self.processor.preprocess_exposure(exposure_config, exposure)
         except RecipeFailure as e:
             if self.custom_handler:
                 self.custom_handler.handle_recipe_failure(exposure, e)

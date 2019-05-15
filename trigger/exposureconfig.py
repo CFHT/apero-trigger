@@ -1,8 +1,8 @@
-from enum import Enum
+from enum import Enum, auto
 
-from .constants import TELLURIC_STANDARDS
+from .common import log
+from .drswrapper import TELLURIC_STANDARDS
 from .headerchecker import HeaderChecker
-from .log import log
 
 
 class FiberType(Enum):
@@ -10,6 +10,7 @@ class FiberType(Enum):
     FLAT = 'FLAT'
     FP = 'FP'
     HCONE = 'HCONE'
+    HCTWO = 'HCTWO'
     OBJ = 'OBJ'
 
     @staticmethod
@@ -31,10 +32,15 @@ class CalibrationType(Enum):
     HCONE_HCONE = (FiberType.HCONE, FiberType.HCONE)
     FP_HCONE = (FiberType.FP, FiberType.HCONE)
     HCONE_FP = (FiberType.HCONE, FiberType.FP)
+    UNKNOWN = auto()
 
     @classmethod
     def from_dpr_type(cls, dpr_type):
-        return CalibrationType(FiberType.from_dpr_type(dpr_type))
+        try:
+            return CalibrationType(FiberType.from_dpr_type(dpr_type))
+        except:
+            log.warning('Unknown calibration type %s', dpr_type)
+            return CalibrationType.UNKNOWN
 
     @property
     def science_fiber(self):
@@ -54,19 +60,27 @@ class InstrumentMode(Enum):
     POLAR2 = ('P2', 'P16')
     POLAR3 = ('P2', 'P4')
     POLAR4 = ('P14', 'P4')
+    UNKNOWN = auto()
 
     @staticmethod
-    def from_rhombs(rhomb1, rhomb2):
-        return InstrumentMode((rhomb1, rhomb2))
+    def from_rhombs(rhombs):
+        try:
+            return InstrumentMode(rhombs)
+        except:
+            log.warning('Unknown rhomb config %s %s', rhombs[0], rhombs[1])
+            return InstrumentMode.UNKNOWN
 
     def is_polarimetry(self):
-        return self != self.SPECTROSCOPY
+        return self in (InstrumentMode.POLAR1,
+                        InstrumentMode.POLAR2,
+                        InstrumentMode.POLAR3,
+                        InstrumentMode.POLAR4)
 
 
 class TargetType(Enum):
-    STAR = 0
-    SKY = 1
-    TELLURIC_STANDARD = 2
+    STAR = auto()
+    SKY = auto()
+    TELLURIC_STANDARD = auto()
 
 
 class ObjectLite():
@@ -79,26 +93,6 @@ class Object(ObjectLite):
     def __init__(self, instrument_mode, target, reference_fiber):
         super().__init__(instrument_mode, target)
         self.reference_fiber = reference_fiber
-
-
-class ExposureConfigLite():
-    def __init__(self, object=None):
-        self.object = object
-
-    @classmethod
-    def from_header_checker(cls, header_checker):
-        if header_checker.is_object():
-            instrument_mode = InstrumentMode(header_checker.get_rhomb_positions())
-            if header_checker.is_sky():
-                target = TargetType.SKY
-            elif header_checker.get_object_name() in TELLURIC_STANDARDS:
-                target = TargetType.TELLURIC_STANDARD
-            else:
-                target = TargetType.STAR
-            object = ObjectLite(instrument_mode, target)
-            return cls(object=object)
-        else:
-            raise ValueError('ExposureConfigLite meant for use with object exposures')
 
 
 class ExposureConfig():
@@ -129,20 +123,27 @@ class ExposureConfig():
 
     @classmethod
     def from_header_checker(cls, header_checker):
-        dpr_type = header_checker.get_dpr_type()
         if header_checker.is_object():
-            instrument_mode = InstrumentMode(header_checker.get_rhomb_positions())
+            instrument_mode = InstrumentMode.from_rhombs(header_checker.get_rhomb_positions())
             if header_checker.is_sky():
                 target = TargetType.SKY
             elif header_checker.get_object_name() in TELLURIC_STANDARDS:
                 target = TargetType.TELLURIC_STANDARD
             else:
                 target = TargetType.STAR
-            object_fiber, reference_fiber = FiberType.from_dpr_type(dpr_type)
-            if object_fiber != FiberType.OBJ:
-                log.warning('Object exposure %s has DPRTYPE %s instead of OBJ', header_checker.file, dpr_type)
-            object = Object(instrument_mode, target, reference_fiber)
+            try:
+                dpr_type = header_checker.get_dpr_type()
+                object_fiber, reference_fiber = FiberType.from_dpr_type(dpr_type)
+                if object_fiber != FiberType.OBJ:
+                    log.warning('Object exposure %s has DPRTYPE %s instead of OBJ', header_checker.file, dpr_type)
+                object = Object(instrument_mode, target, reference_fiber)
+            except:
+                object = ObjectLite(instrument_mode, target)
             return cls(object=object)
         else:
-            calibration = CalibrationType.from_dpr_type(dpr_type)
+            try:
+                dpr_type = header_checker.get_dpr_type()
+                calibration = CalibrationType.from_dpr_type(dpr_type)
+            except:
+                calibration = True
             return cls(calibration=calibration)

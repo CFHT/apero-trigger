@@ -1,76 +1,16 @@
 #!/data/spirou/venv/bin/python3 -u
 
-import argparse
 import datetime
 
 from drsloader import DrsLoader
 from listener import run_listener
-from logger import logger, configure_logger
+from logger import configure_logger
+from offline_trigger import get_base_argument_parser, reduce_execute
 from realtime import realtime
 
-
-class StepsParser:
-    __valid_steps = (
-        'preprocess',
-        'calibrations',
-        'extract',
-        'pol',
-        'mktellu',
-        'fittellu',
-        'ccf',
-        'products',
-        'distribute',
-        'database'
-    )
-    __step_aliases = {
-        'pp': 'preprocess',
-        'cals': 'calibrations',
-        'objects': 'extract',
-        'package': 'products',
-        'dist': 'distribute',
-        'db': 'database'
-    }
-    step_name_map = {**{step: step for step in __valid_steps}, **__step_aliases}
-
-    @classmethod
-    def valid_steps_str(cls):
-        grouped_step_name_map = {}
-        for k, v in cls.step_name_map.items():
-            grouped_step_name_map.setdefault(v, []).append(k)
-        step_help_strings = ['|'.join(grouped_names) for grouped_names in grouped_step_name_map.values()]
-        return ', '.join(step_help_strings)
-
-    def __init__(self, arg):
-        self.__arg = arg
-
-    def get_mapped_steps(self, steps):
-        if not steps:
-            return steps
-        errors = []
-        mapped_steps = []
-        for step in steps:
-            if step not in self.step_name_map.keys():
-                errors.append(step + ' invalid')
-            else:
-                mapped_step = self.step_name_map[step]
-                if mapped_step in mapped_steps:
-                    errors.append(mapped_step + ' used multiple times')
-                else:
-                    mapped_steps.append(mapped_step)
-        if errors:
-            message = ', '.join(errors)
-            raise argparse.ArgumentError(self.__arg, message)
-        return [self.step_name_map[step] for step in steps]
-
-
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--loglevel', choices=['INFO', 'WARNING', 'ERROR'], default='INFO')
-    parser.add_argument('--logfile')
-    parser.add_argument('--logfilelevel', choices=['INFO', 'WARNING', 'ERROR'], default='INFO')
+    parser, subparsers = get_base_argument_parser(additional_step_options=['distribute', 'database'])
     parser.add_argument('--config', help='Use custom DRS config directory')
-    subparsers = parser.add_subparsers(dest='command')
-    subparsers.required = True
     version_parse = subparsers.add_parser('version', help='DRS version information')
     version_flags = version_parse.add_mutually_exclusive_group(required=False)
     version_flags.add_argument('--drs', action='store_true')
@@ -78,55 +18,16 @@ if __name__ == '__main__':
     realtime_parse = subparsers.add_parser('realtime', help='Reduce next file from observing session and update DB')
     realtime_parse.add_argument('filepath')
     listener_parse = subparsers.add_parser('listener', help='Run local http listener for automated realtime calls')
-    listener_parse.add_argument('--port', default=9998)
-    listener_parse.add_argument('--threads', default=4)
-    reduce_parser = argparse.ArgumentParser(add_help=False)
-    reduce_parser.add_argument('night')
-    reduce_parser.add_argument('--trace', action='store_true', help='Only simulate DRS commands, requires pp files')
-    reduce_parser.add_argument('--ccfmask', type=str, default='masque_sept18_andres_trans50.mas')
-    reduce_parser.add_argument('--ccfv0', type=float, default=0)
-    reduce_parser.add_argument('--ccfrange', type=float, default=200)
-    reduce_parser.add_argument('--ccfstep', type=float, default=1)
-    steps_parse = reduce_parser.add_argument('--steps', nargs='+', help='Options: ' + StepsParser.valid_steps_str())
+    listener_parse.add_argument('--port', type=int, default=9998)
+    listener_parse.add_argument('--processes', type=int, default=4)
 
-    # reduce_opts = reduce_parser.add_mutually_exclusive_group(required=True)
-    # reduce_opts.add_argument('night')
-    # reduce_opts.add_argument('runid')
-    exclude_parser = argparse.ArgumentParser(parents=[reduce_parser], add_help=False)
-    exclude_parser.add_argument('--no-preprocess', '--no-pp', dest='preprocess', action='store_false',
-                                help='Skip pre-processing')
-    exclude_parser.set_defaults(preprocess=True)
-    reduce_all_parser = subparsers.add_parser('night', parents=[exclude_parser], help='Reduce entire night directory')
-    reduce_all_parser.add_argument('--runid')
-    reduce_subset_parser = subparsers.add_parser('subset', parents=[exclude_parser], help='Reduce part of night')
-    reduce_subset_flags = reduce_subset_parser.add_mutually_exclusive_group(required=True)
-    reduce_subset_flags.add_argument('--range', nargs=2, help='Files at start and end of range')
-    reduce_subset_flags.add_argument('--list', nargs='+', help='Specific list of files')
-    reduce_file_parse = subparsers.add_parser('file', parents=[exclude_parser], help='Reduce a single file')
-    reduce_file_parse.add_argument('filename')
-    reduce_sequence_parse = subparsers.add_parser('sequence', parents=[exclude_parser],
-                                                  help='Reduce a sequence of files together')
-    reduce_sequence_parse.add_argument('filenames', nargs='+')
-    # TODO - support for:
-    # - different limiters
-    #   - night
-    #   - runid
-    #   - target
     args = parser.parse_args()
-    step_args = []
-    try:
-        steps = args.steps if 'steps' in args else None
-        step_args = StepsParser(steps_parse).get_mapped_steps(steps)
-    except argparse.ArgumentError as e:
-        parser.error(e)
 
-    log_files = []
-    if args.logfile:
-        log_files.append((args.logfile, args.logfilelevel))
+    log_files = args.logfile if args.logfile else []
     if args.command == 'listener':
         timestamp = datetime.datetime.now().strftime("error-report-%Y%m%d-%H%M%S")
         log_files.append((timestamp, 'ERROR'))
-    configure_logger(logger, console_level=args.loglevel, log_files=log_files)
+    configure_logger(console_level=args.loglevel, log_files=log_files)
 
     if args.config is not None:
         DrsLoader.set_drs_config_subdir(args.config)
@@ -134,34 +35,18 @@ if __name__ == '__main__':
     if args.command == 'realtime':
         realtime(args.filepath)
     elif args.command == 'listener':
-        run_listener(str(args.port), int(args.threads))
+        run_listener(args.port, args.processes)
     else:
         loader = DrsLoader()
         cfht = loader.get_loaded_trigger_module()
-        from cfht import CfhtDrsTrigger as DrsTrigger, ObjectSteps, Steps, CcfParams
+        from cfht import CfhtDrsTrigger, CfhtDrsSteps, CcfParams
         if args.command == 'version':
             if args.drs:
-                print(DrsTrigger.drs_version())
+                print(CfhtDrsTrigger.drs_version())
             elif args.trigger:
-                print(DrsTrigger.trigger_version())
+                print(CfhtDrsTrigger.trigger_version())
             else:
-                print('DRS version', DrsTrigger.drs_version(), '-', 'Trigger version', DrsTrigger.trigger_version())
+                print('DRS version', CfhtDrsTrigger.drs_version(), '-',
+                      'Trigger version', CfhtDrsTrigger.trigger_version())
         else:
-            ccf_params = CcfParams(args.ccfmask, args.ccfv0, args.ccfrange, args.ccfstep)
-            if step_args:
-                steps = Steps.from_keys(step_args)
-            else:
-                steps = Steps(args.preprocess, True, ObjectSteps.all())
-            trigger = DrsTrigger(steps, trace=args.trace, ccf_params=ccf_params)
-            if args.command == 'night':
-                trigger.reduce_night(args.night, runid=args.runid)
-            if args.command == 'subset':
-                if args.list:
-                    trigger.reduce(args.night, args.list)
-                elif args.range:
-                    trigger.reduce_range(args.night, args.range[0], args.range[1])
-            elif args.command == 'file':
-                if trigger.preprocess(args.night, args.filename):
-                    trigger.process_file(args.night, args.filename)
-            elif args.command == 'sequence':
-                trigger.process_sequence(args.night, args.filenames)
+            reduce_execute(args, CfhtDrsTrigger, CfhtDrsSteps, CcfParams)
