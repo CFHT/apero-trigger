@@ -17,7 +17,8 @@ def is_desired_file(checker, steps):
     return (steps.preprocess and PreprocessStep.PPCAL in steps.preprocess and has_calibration_extension(checker.file) or
             steps.preprocess and PreprocessStep.PPOBJ in steps.preprocess and has_object_extension(checker.file) or
             steps.calibrations and has_calibration_extension(checker.file) or
-            steps.objects and has_object_extension(checker.file) and is_desired_object(checker, steps))
+            steps.objects and has_object_extension(checker.file) and is_desired_object(checker, steps) or
+            (steps.database or steps.distribute) and has_object_extension(checker.file))
 
 
 def has_object_extension(file):
@@ -35,9 +36,7 @@ def is_desired_object(checker, steps):
             ObjectStep.MKTELLU in steps.objects and object_config.target == TargetType.TELLURIC_STANDARD or
             ObjectStep.FITTELLU in steps.objects and object_config.target == TargetType.STAR or
             ObjectStep.CCF in steps.objects and object_config.target == TargetType.STAR or
-            ObjectStep.PRODUCTS in steps.objects or
-            steps.distribute or
-            steps.database)
+            ObjectStep.PRODUCTS in steps.objects)
 
 
 def is_desired_runid(checker, runid_filter=None):
