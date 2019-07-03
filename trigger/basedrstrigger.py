@@ -13,6 +13,10 @@ class AbstractCustomHandler(ABC):
         pass
 
     @abstractmethod
+    def exposure_pre_process(self, exposure):
+        pass
+
+    @abstractmethod
     def exposure_post_process(self, exposure, result):
         pass
 
@@ -48,6 +52,8 @@ class BaseDrsTrigger:
         exposure = Exposure(night, file)
         exposure_config = ExposureConfig.from_file(exposure.raw)
         try:
+            if self.custom_handler:
+                self.custom_handler.exposure_pre_process(exposure)
             return self.processor.preprocess_exposure(exposure_config, exposure)
         except RecipeFailure as e:
             if self.custom_handler:

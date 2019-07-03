@@ -34,7 +34,6 @@ def realtime(raw_path):
         loader = DrsLoader()
         cfht = loader.get_loaded_trigger_module()
         night, file = setup_symlink(raw_path, cfht)
-        cfht.distribute_raw_file(file)
         trigger = cfht.CfhtRealtimeTrigger()
         if not trigger.preprocess(night, file):
             return

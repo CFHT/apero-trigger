@@ -18,7 +18,7 @@ def is_desired_file(checker, steps):
             steps.preprocess and PreprocessStep.PPOBJ in steps.preprocess and has_object_extension(checker.file) or
             steps.calibrations and has_calibration_extension(checker.file) or
             steps.objects and has_object_extension(checker.file) and is_desired_object(checker, steps) or
-            (steps.database or steps.distribute) and has_object_extension(checker.file))
+            (steps.database or steps.distribute or steps.distraw) and has_object_extension(checker.file))
 
 
 def has_object_extension(file):

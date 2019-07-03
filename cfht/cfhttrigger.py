@@ -3,18 +3,19 @@ from astropy.io import fits
 from trigger import AbstractCustomHandler, DrsTrigger, ExposureConfig
 from .dbinterface import QsoDatabase, DatabaseHeaderConverter
 from .director import director_message
-from .distribution import ProductDistributorFactory
+from .distribution import ProductDistributorFactory, distribute_raw_file
 from .steps import CfhtDrsSteps
 
 TRIGGER_VERSION = '018'
 
 
 class CfhtHandler(AbstractCustomHandler):
-    def __init__(self, realtime, trace, distributing, updating_database):
+    def __init__(self, realtime, trace, distributing_raw, distributing_products, updating_database):
         self.director_warnings = realtime
         self.updating_database = updating_database and not trace
-        self.distributor_factory = ProductDistributorFactory(trace, realtime, distributing)
-        self.database = QsoDatabase() if distributing or updating_database else None
+        self.distributing_raw = distributing_raw
+        self.distributor_factory = ProductDistributorFactory(trace, realtime, distributing_products)
+        self.database = QsoDatabase() if distributing_products or updating_database else None
         self.realtime = realtime
 
     def handle_recipe_failure(self, exposure_or_sequence, error):
@@ -25,6 +26,10 @@ class CfhtHandler(AbstractCustomHandler):
                           'pol_spirou')
         if self.director_warnings and not error.startswith(ignore_modules):
             director_message(str(error), level='warning')
+
+    def exposure_pre_process(self, exposure):
+        if self.distributing_raw:
+            distribute_raw_file(exposure.raw)
 
     def exposure_post_process(self, exposure, result):
         config = ExposureConfig.from_file(exposure.preprocessed)
@@ -82,7 +87,7 @@ class CfhtDrsTrigger(DrsTrigger):
 
     def __init__(self, steps, ccf_params, realtime=False, trace=False):
         super().__init__(steps, ccf_params, trace)
-        handler = CfhtHandler(realtime, trace, self.steps.distribute, self.steps.database)
+        handler = CfhtHandler(realtime, trace, self.steps.distraw, self.steps.distribute, self.steps.database)
         self.set_custom_handler(handler)
 
 
