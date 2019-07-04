@@ -96,13 +96,14 @@ class Object(ObjectLite):
 
 
 class ExposureConfig():
-    def __init__(self, calibration=None, object=None):
+    def __init__(self, calibration=None, object=None, is_aborted=False):
         if calibration is None and object is None:
             raise ValueError('Exposure must be calibration or object')
         if calibration is not None and object is not None:
             raise ValueError('Exposure cannot be both calibration and object')
         self.calibration = calibration
         self.object = object
+        self.is_aborted = is_aborted
 
     def is_matching_type(self, exposure_config):
         return self.is_matching_calibration(exposure_config) or self.is_matching_object(exposure_config)
@@ -123,6 +124,7 @@ class ExposureConfig():
 
     @classmethod
     def from_header_checker(cls, header_checker):
+        is_aborted = header_checker.is_aborted()
         if header_checker.is_object():
             instrument_mode = InstrumentMode.from_rhombs(header_checker.get_rhomb_positions())
             if header_checker.is_sky():
@@ -139,11 +141,11 @@ class ExposureConfig():
                 object = Object(instrument_mode, target, reference_fiber)
             except:
                 object = ObjectLite(instrument_mode, target)
-            return cls(object=object)
+            return cls(object=object, is_aborted=is_aborted)
         else:
             try:
                 dpr_type = header_checker.get_dpr_type()
                 calibration = CalibrationType.from_dpr_type(dpr_type)
             except:
                 calibration = True
-            return cls(calibration=calibration)
+            return cls(calibration=calibration, is_aborted=is_aborted)

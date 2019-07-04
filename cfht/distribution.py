@@ -20,6 +20,7 @@ def distribute_raw_file(path, nonblocking=True):
     hdulist = fits.open(path)
     run_id = hdulist[0].header['RUNID']
     destination = get_distribution_path(path, run_id, 'raw')
+    log.info('Distributing %s', destination)
     if nonblocking:
         Thread(target=shutil.copy2, args=[path, destination]).start()
         return destination

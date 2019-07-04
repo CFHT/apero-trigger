@@ -7,7 +7,6 @@ from .steps import PreprocessStep, ObjectStep
 def sort_and_filter_files(files, steps, runid=None):
     checkers = [HeaderChecker(file) for file in files]
     filtered = filter(lambda checker: is_desired_file(checker, steps)
-                                      and not checker.is_aborted()
                                       and is_desired_runid(checker, runid),
                       checkers)
     return sort_files_by_observation_date(filtered)

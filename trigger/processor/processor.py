@@ -18,7 +18,7 @@ class Processor:
         pp_steps = self.steps.preprocess
         if pp_steps:
             if (config.object and PreprocessStep.PPOBJ in pp_steps
-                    or config.calibration and PreprocessStep.PPCAL in pp_steps):
+                    or config.calibration and PreprocessStep.PPCAL in pp_steps) and not config.is_aborted:
                 return self.drs.cal_preprocess(exposure)
         else:
             return exposure.preprocessed.exists()
