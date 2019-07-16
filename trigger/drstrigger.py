@@ -3,7 +3,7 @@ from multiprocessing import Pool
 from .basedrstrigger import BaseDrsTrigger
 from .common import log
 from .drswrapper import DRS_VERSION
-from .fileselector import sort_and_filter_files
+from .fileselector import FileSelector
 from .pathhandler import Night, RootDirectories
 
 
@@ -47,9 +47,13 @@ class DrsTrigger(BaseDrsTrigger):
 
     def __find_files(self, night, runid=None):
         night_directory = Night(night).input_directory
-        all_files = [file for file in night_directory.glob('*.fits') if file.exists()]  # filter out broken symlinks
-        files = sort_and_filter_files(all_files, self.steps, runid)  # Filter out unused input files ahead of time
+        all_files = [file for file in night_directory.glob('*.fits') if file.exists()]  # Filter out broken symlinks
+        file_selector = self.get_file_selector()
+        files = file_selector.sort_and_filter_files(all_files, self.steps, runid)  # Filter out unused input files
         return files
+
+    def get_file_selector(self):
+        return FileSelector()
 
     def __get_subrange(self, files, start_file, end_file):
         start_index, end_index = None, None

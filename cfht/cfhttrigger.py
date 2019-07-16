@@ -4,6 +4,7 @@ from trigger import AbstractCustomHandler, DrsTrigger, ExposureConfig
 from .dbinterface import QsoDatabase, DatabaseHeaderConverter
 from .director import director_message
 from .distribution import ProductDistributorFactory, distribute_raw_file
+from .fileselector import CfhtFileSelector
 from .steps import CfhtDrsSteps
 
 TRIGGER_VERSION = '018'
@@ -84,6 +85,9 @@ class CfhtDrsTrigger(DrsTrigger):
     @staticmethod
     def trigger_version():
         return TRIGGER_VERSION
+
+    def get_file_selector(self):
+        return CfhtFileSelector()
 
     def __init__(self, steps, ccf_params, realtime=False, trace=False):
         super().__init__(steps, ccf_params, trace)

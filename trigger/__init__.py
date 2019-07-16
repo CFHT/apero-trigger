@@ -1,9 +1,12 @@
-from . import exposureconfig, steps, basedrstrigger, drstrigger, common
+from . import exposureconfig, steps, basedrstrigger, drstrigger, common, fileselector
 
 log = common.log
 CcfParams = common.CcfParams
 
 DrsSteps = steps.DrsSteps
+
+SingleFileSelector = fileselector.SingleFileSelector
+FileSelector = fileselector.FileSelector
 
 ExposureConfig = exposureconfig.ExposureConfig
 
