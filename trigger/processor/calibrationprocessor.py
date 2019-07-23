@@ -40,9 +40,13 @@ class CalibrationProcessor():
             self.processed_sequences = []
             self.process_queue()
         except WaitingForCalibration:
-            return {'calibrations_complete': False, 'processed_sequences': self.processed_sequences}
+            calibrations_complete = False
         else:
-            return {'calibrations_complete': True, 'processed_sequences': self.processed_sequences}
+            calibrations_complete = True
+        return {
+            'calibrations_complete': calibrations_complete,
+            'processed_sequences': self.processed_sequences,
+        }
 
     def process_queue(self):
         def badpix_logic():
@@ -67,7 +71,7 @@ class CalibrationProcessor():
             for fiber in FIBER_LIST:
                 self.drs.cal_HC_E2DS(last_hc, fiber)
             for fiber in FIBER_LIST:
-                self.drs.cal_WAVE_E2DS(last_fp, last_fp, fiber)
+                self.drs.cal_WAVE_E2DS(last_fp, last_hc, fiber)
 
         self.process_step_simple(CalibrationStep.DARK, CalibrationType.DARK_DARK, self.drs.cal_DARK)
         self.process_step_generalized(CalibrationStep.BADPIX, badpix_logic)
