@@ -6,9 +6,9 @@ from ..steps import ObjectStep, PreprocessStep
 
 
 class Processor:
-    def __init__(self, steps, ccf_params, trace):
+    def __init__(self, steps, ccf_params, trace, error_handler):
         self.steps = steps
-        self.drs = DRS(trace)
+        self.drs = DRS(trace, error_handler=error_handler)
         create_products = ObjectStep.PRODUCTS in steps.objects
         packager = ProductPackager(trace, create_products)
         self.calibration_processor = CalibrationProcessor(steps.calibrations, self.drs)

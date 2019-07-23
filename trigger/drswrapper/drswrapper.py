@@ -16,9 +16,9 @@ import pol_spirou
 from .reciperunner import RecipeRunner
 
 
-class DRS():
-    def __init__(self, trace=False, log_command=True):
-        self.runner = RecipeRunner(trace=trace, log_command=log_command)
+class DRS:
+    def __init__(self, trace=False, log_command=True, error_handler=None):
+        self.runner = RecipeRunner(trace=trace, log_command=log_command, error_handler=error_handler)
 
     def cal_preprocess(self, exposure):
         return self.runner.run(cal_preprocess_spirou, exposure.night, exposure.raw.name)

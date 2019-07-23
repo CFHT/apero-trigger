@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 
-from .common import log, RecipeFailure
+from .common import log
 from .exposureconfig import ExposureConfig
 from .headerchecker import HeaderChecker
 from .pathhandler import Exposure
@@ -9,7 +9,7 @@ from .processor import Processor
 
 class AbstractCustomHandler(ABC):
     @abstractmethod
-    def handle_recipe_failure(self, exposure_or_sequence, error):
+    def handle_recipe_failure(self, error):
         pass
 
     @abstractmethod
@@ -26,13 +26,10 @@ class AbstractCustomHandler(ABC):
 
 
 class BaseDrsTrigger:
-    def __init__(self, steps, ccf_params, trace=False):
+    def __init__(self, steps, ccf_params, trace=False, custom_handler=None):
         self.steps = steps
-        self.processor = Processor(self.steps, ccf_params, trace)
-        self.custom_handler = None
-
-    def set_custom_handler(self, handler):
-        self.custom_handler = handler
+        self.custom_handler = custom_handler
+        self.processor = Processor(self.steps, ccf_params, trace, self.custom_handler)
 
     def reduce(self, night, files_in_order):
         current_sequence = []
@@ -51,29 +48,16 @@ class BaseDrsTrigger:
     def preprocess(self, night, file):
         exposure = Exposure(night, file)
         exposure_config = ExposureConfig.from_file(exposure.raw)
-        try:
-            if self.custom_handler:
-                self.custom_handler.exposure_pre_process(exposure)
-            return self.processor.preprocess_exposure(exposure_config, exposure)
-        except RecipeFailure as e:
-            if self.custom_handler:
-                self.custom_handler.handle_recipe_failure(exposure, e)
-            else:
-                raise
+        if self.custom_handler:
+            self.custom_handler.exposure_pre_process(exposure)
+        return self.processor.preprocess_exposure(exposure_config, exposure)
 
     def process_file(self, night, file):
         exposure = Exposure(night, file)
         exposure_config = ExposureConfig.from_file(exposure.preprocessed)
-        try:
-            result = self.processor.process_exposure(exposure_config, exposure)
-        except RecipeFailure as e:
-            if self.custom_handler:
-                self.custom_handler.handle_recipe_failure(exposure, e)
-            else:
-                raise
-        else:
-            if self.custom_handler:
-                self.custom_handler.exposure_post_process(exposure, result)
+        result = self.processor.process_exposure(exposure_config, exposure)
+        if self.custom_handler:
+            self.custom_handler.exposure_post_process(exposure, result)
 
     def process_sequence(self, night, files):
         exposures = [Exposure(night, file) for file in files]
@@ -81,16 +65,9 @@ class BaseDrsTrigger:
         for exposure in exposures:
             exposure_config = ExposureConfig.from_file(exposure.preprocessed)
             assert exposure_config.is_matching_type(sequence_config), 'Exposure type changed mid-sequence'
-        try:
-            result = self.processor.process_sequence(sequence_config, exposures)
-        except RecipeFailure as e:
-            if self.custom_handler:
-                self.custom_handler.handle_recipe_failure(exposures, e)
-            else:
-                raise
-        else:
-            if self.custom_handler:
-                self.custom_handler.sequence_post_process(exposures, result)
+        result = self.processor.process_sequence(sequence_config, exposures)
+        if self.custom_handler:
+            self.custom_handler.sequence_post_process(exposures, result)
 
     # Appends file to current_sequence, and if sequence is now complete, returns it and clears current_sequence.
     @staticmethod

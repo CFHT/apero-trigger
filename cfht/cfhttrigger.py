@@ -19,7 +19,7 @@ class CfhtHandler(AbstractCustomHandler):
         self.database = QsoDatabase() if distributing_products or updating_database else None
         self.realtime = realtime
 
-    def handle_recipe_failure(self, exposure_or_sequence, error):
+    def handle_recipe_failure(self, error):
         ignore_modules = ('cal_CCF_E2DS_spirou',
                           'cal_CCF_E2DS_FP_spirou',
                           'obj_mk_tellu',
@@ -90,9 +90,8 @@ class CfhtDrsTrigger(DrsTrigger):
         return CfhtFileSelector()
 
     def __init__(self, steps, ccf_params, realtime=False, trace=False):
-        super().__init__(steps, ccf_params, trace)
-        handler = CfhtHandler(realtime, trace, self.steps.distraw, self.steps.distribute, self.steps.database)
-        self.set_custom_handler(handler)
+        handler = CfhtHandler(realtime, trace, steps.distraw, steps.distribute, steps.database)
+        super().__init__(steps, ccf_params, trace, handler)
 
 
 class CfhtRealtimeTrigger(CfhtDrsTrigger):

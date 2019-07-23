@@ -12,9 +12,10 @@ class QCFailure(Exception):
 
 
 class RecipeRunner:
-    def __init__(self, trace=False, log_command=True):
+    def __init__(self, trace=False, log_command=True, error_handler=None):
         self.trace = trace
         self.log_command = log_command
+        self.error_handler = error_handler
 
     def run(self, module, night, *args):
         # Get a string representation of the command, ideally matching what the command line call would be
@@ -26,15 +27,15 @@ class RecipeRunner:
         except SystemExit:
             failure = RecipeFailure('system exit', command_string)
             log.error(failure)
-            raise failure
+            self.__handle_error(failure)
         except QCFailure:
             failure = RecipeFailure('QC failure', command_string)
             log.error(failure)
-            raise failure
+            self.__handle_error(failure)
         except Exception:
             failure = RecipeFailure('uncaught exception', command_string)
             log.error(failure, exc_info=True)
-            raise failure
+            self.__handle_error(failure)
 
     def __run(self, module, night, *args):
         if self.trace:
@@ -47,3 +48,7 @@ class RecipeRunner:
             if qc_failures and not qc_passed:
                 raise QCFailure(qc_failures)
             return True
+
+    def __handle_error(self, error):
+        if self.error_handler:
+            self.error_handler.handle_recipe_failure(error)

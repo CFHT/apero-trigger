@@ -8,6 +8,9 @@ from .pathhandler import Night, RootDirectories
 
 
 class DrsTrigger(BaseDrsTrigger):
+    def __init__(self, steps, ccf_params, trace=False, custom_handler=None):
+        super().__init__(steps, ccf_params, trace, custom_handler)
+
     @staticmethod
     def drs_version():
         return DRS_VERSION
