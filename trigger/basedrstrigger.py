@@ -33,6 +33,7 @@ class BaseDrsTrigger:
 
     def reduce(self, night, files_in_order):
         current_sequence = []
+        self.processor.reset_state()
         for file in files_in_order:
             if not self.preprocess(night, file):
                 continue

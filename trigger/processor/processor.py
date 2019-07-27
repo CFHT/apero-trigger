@@ -36,3 +36,6 @@ class Processor:
             return self.calibration_processor.attempt_processing_queue()
         elif config.object.instrument_mode.is_polarimetry():
             return self.object_processor.process_polar_seqeunce(exposures)
+
+    def reset_state(self):
+        self.calibration_processor.reset_state()

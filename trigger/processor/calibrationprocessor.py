@@ -15,9 +15,7 @@ class CalibrationProcessor():
         super().__init__()
         self.steps = calibration_steps
         self.drs = drs
-        self.calibration_sequences = defaultdict(list)
-        self.remaining_queue = defaultdict(deque)
-        self.completed_calibrations = set()
+        self.reset_state()
 
     def get_state(self):
         return {
@@ -31,6 +29,11 @@ class CalibrationProcessor():
         self.calibration_sequences = kwargs.get('calibration_sequences')
         self.remaining_queue = kwargs.get('remaining_queue')
 
+    def reset_state(self):
+        self.completed_calibrations = set()
+        self.calibration_sequences = defaultdict(list)
+        self.remaining_queue = defaultdict(deque)
+
     def add_sequence_to_queue(self, exposures, calibration_type):
         self.calibration_sequences[calibration_type].append(exposures)
         self.remaining_queue[calibration_type].append(exposures)
@@ -43,6 +46,9 @@ class CalibrationProcessor():
             calibrations_complete = False
         else:
             calibrations_complete = True
+            self.reset_state()
+            self.completed_calibrations.add(CalibrationStep.DARK)
+            self.completed_calibrations.add(CalibrationStep.BADPIX)
         return {
             'calibrations_complete': calibrations_complete,
             'processed_sequences': self.processed_sequences,
