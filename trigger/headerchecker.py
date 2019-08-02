@@ -68,4 +68,5 @@ class HeaderChecker:
         MIN_EXP_TIME_RATIO_THRESHOLD = 0.1
         if 'EXPTIME' not in self.header or 'EXPREQ' not in self.header:
             log.warning('%s missing EXPTIME/EXPREQ in header, assuming not an aborted exposure', self.file)
+            return False
         return self.header['EXPTIME'] / self.header['EXPREQ'] < MIN_EXP_TIME_RATIO_THRESHOLD
