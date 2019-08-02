@@ -1,4 +1,5 @@
 from .common import log
+from .drswrapper import TELLURIC_STANDARDS
 from .exposureconfig import ExposureConfig, TargetType
 from .headerchecker import HeaderChecker
 from .steps import PreprocessStep, ObjectStep
@@ -8,9 +9,9 @@ class FileSelector:
     def __init__(self, file_selector_class=None):
         self.SingleFileSelector = file_selector_class if file_selector_class else SingleFileSelector
 
-    def sort_and_filter_files(self, files, steps, runid=None):
+    def sort_and_filter_files(self, files, steps, filters):
         checkers = [HeaderChecker(file) for file in files]
-        filtered = filter(lambda checker: self.SingleFileSelector(checker, steps).is_desired_file(runid), checkers)
+        filtered = filter(lambda checker: self.SingleFileSelector(checker, steps).is_desired_file(filters), checkers)
         sorted = FileSelector.sort_files_by_observation_date(filtered)
         return sorted
 
@@ -31,8 +32,9 @@ class SingleFileSelector:
         self.checker = checker
         self.steps = steps
 
-    def is_desired_file(self, runid=None):
-        return self.is_desired_etype(self.checker, self.steps) and self.is_desired_runid(self.checker, runid)
+    def is_desired_file(self, filters):
+        FileSelectionFilters(filters)
+        return self.is_desired_etype(self.checker, self.steps) and filters.matches_all_filters(self.checker)
 
     @classmethod
     def is_desired_etype(cls, checker, steps):
@@ -70,12 +72,34 @@ class SingleFileSelector:
                 ObjectStep.CCF in steps.objects and object_config.target == TargetType.STAR or
                 ObjectStep.PRODUCTS in steps.objects)
 
-    @staticmethod
-    def is_desired_runid(checker, runid_filter=None):
+
+class FileSelectionFilters:
+    def __init__(self, runids=None, targets=None):
+        self.runids = runids
+        self.targets = targets
+
+    def matches_all_filters(self, checker):
+        return self.is_desired_runid(checker) and self.is_desired_target(checker)
+
+    def is_desired_runid(self, checker):
+        if self.runids is None:
+            return True
         run_id = checker.get_runid()
-        if runid_filter and not run_id:
+        if not run_id:
             log.warning('File %s missing RUNID keyword, skipping.', checker.file)
             return False
-        elif runid_filter and run_id != runid_filter:
+        return run_id in self.runids
+
+    def is_desired_target(self, checker):
+        if self.targets is None:
+            return True
+        try:
+            target = checker.get_object_name()
+            return target in self.targets
+        except RuntimeError:
+            log.warning('File %s missing OBJECT keyword, skipping.', checker.file)
             return False
-        return True
+
+    @classmethod
+    def telluric_standards(cls):
+        return cls(targets=TELLURIC_STANDARDS)

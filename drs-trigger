@@ -39,7 +39,7 @@ if __name__ == '__main__':
     else:
         loader = DrsLoader()
         cfht = loader.get_loaded_trigger_module()
-        from cfht import CfhtDrsTrigger, CfhtDrsSteps, CcfParams
+        from cfht import CfhtDrsTrigger, CfhtDrsSteps, FileSelectionFilters, CcfParams
         if args.command == 'version':
             if args.drs:
                 print(CfhtDrsTrigger.drs_version())
@@ -49,4 +49,4 @@ if __name__ == '__main__':
                 print('DRS version', CfhtDrsTrigger.drs_version(), '-',
                       'Trigger version', CfhtDrsTrigger.trigger_version())
         else:
-            reduce_execute(args, CfhtDrsTrigger, CfhtDrsSteps, CcfParams)
+            reduce_execute(args, CfhtDrsTrigger, CfhtDrsSteps, FileSelectionFilters, CcfParams)

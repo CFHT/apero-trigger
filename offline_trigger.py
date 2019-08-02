@@ -16,8 +16,8 @@ def get_base_argument_parser(additional_step_options = None):
     reduce_parser.add_argument('--ccfv0', type=float, default=0)
     reduce_parser.add_argument('--ccfrange', type=float, default=200)
     reduce_parser.add_argument('--ccfstep', type=float, default=1)
-    reduce_parser.add_argument('--runid', help='Only process files belonging to the runid')
-    # TODO: support for reducing by target
+    reduce_parser.add_argument('--runid', nargs='+', help='Only process files belonging to the runid(s)')
+    reduce_parser.add_argument('--target', nargs='+', help='Only process files that are observations of the target(s)')
 
     steps_options = ['preprocess', 'ppcal', 'ppobj',
                      'calibrations', 'dark', 'badpix', 'loc', 'slit', 'shape', 'ff', 'wave',
@@ -45,36 +45,43 @@ def get_base_argument_parser(additional_step_options = None):
     reduce_sequence_parse = subparsers.add_parser('sequence', parents=[single_night_parser],
                                                   help='Reduce a sequence of files together')
     reduce_sequence_parse.add_argument('filenames', nargs='+')
+    subparsers.add_parser('telludb', parents=[multi_night_parser], help='Process telluric standards across all nights')
     return parser, subparsers
 
 
-def reduce_execute(args, drs_class, steps_class, ccf_params_class):
+def reduce_execute(args, drs_class, steps_class, filters_class, ccf_params_class):
     ccf_params = ccf_params_class(args.ccfmask, args.ccfv0, args.ccfrange, args.ccfstep)
     if args.steps:
         steps = steps_class.from_keys(args.steps)
+    elif args.command == 'telludb':
+        steps = steps_class.from_keys(['extract'])
     else:
         steps = steps_class.all()
     trigger = drs_class(steps, ccf_params=ccf_params, trace=args.trace)
+    filters = filters_class(runids= args.runid, targets=args.target)
     if args.command == 'all':
-        trigger.reduce_all_nights(num_processes=args.parallel, runid=args.runid)
+        trigger.reduce_all_nights(filters=filters, num_processes=args.parallel)
     elif args.command == 'qrunid':
-        trigger.reduce_qrun(args.qrunid, num_processes=args.parallel, runid=args.runid)
+        trigger.reduce_qrun(args.qrunid, filters=filters, num_processes=args.parallel)
     elif args.command == 'night':
-        trigger.reduce_night(args.night, runid=args.runid)
+        trigger.reduce_night(args.night, filters=filters)
     elif args.command == 'subset':
         if args.list:
             trigger.reduce(args.night, args.list)
         elif args.range:
-            trigger.reduce_range(args.night, args.range[0], args.range[1])
+            trigger.reduce_range(args.night, args.range[0], args.range[1], filters=filters)
     elif args.command == 'file':
         if trigger.preprocess(args.night, args.filename):
             trigger.process_file(args.night, args.filename)
     elif args.command == 'sequence':
         trigger.process_sequence(args.night, args.filenames)
+    elif args.command == 'telludb':
+        filters = filters_class.telluric_standards()
+        trigger.reduce_all_nights(filters=filters, num_processes=args.parallel)
 
 
 if __name__ == '__main__':
-    from trigger import DrsTrigger, DrsSteps, CcfParams, logger
+    from trigger import DrsTrigger, DrsSteps, FileSelectionFilters, CcfParams, logger
 
     parser, subparsers = get_base_argument_parser()
     subparsers.add_parser('version', help='DRS version information')
@@ -86,4 +93,4 @@ if __name__ == '__main__':
     if args.command == 'version':
         print(DrsTrigger.drs_version())
     else:
-        reduce_execute(args, DrsTrigger, DrsSteps, CcfParams)
+        reduce_execute(args, DrsTrigger, DrsSteps, FileSelectionFilters, CcfParams)

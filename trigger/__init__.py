@@ -7,6 +7,7 @@ DrsSteps = steps.DrsSteps
 
 SingleFileSelector = fileselector.SingleFileSelector
 FileSelector = fileselector.FileSelector
+FileSelectionFilters = fileselector.FileSelectionFilters
 
 ExposureConfig = exposureconfig.ExposureConfig
 
