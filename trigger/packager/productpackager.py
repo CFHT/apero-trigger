@@ -45,7 +45,7 @@ class ProductPackager:
             try:
                 cal_extensions = self.get_cal_extensions(exposure)
             except:
-                log.error('Failed to find calibration files in header, cannot create %s', product_2d.filename)
+                log.error('Could not find calibrations from header, cannot create %s', product_2d.name, exc_info=True)
             else:
                 return [
                     self.get_primary_header(exposure),
@@ -75,7 +75,7 @@ class ProductPackager:
             try:
                 cal_extensions = self.get_cal_extensions(exposure, 'WaveAB', 'BlazeAB')
             except:
-                log.error('Failed to find calibration files in header, cannot create %s', product_pol.filename)
+                log.error('Could not find calibrations from header, cannot create %s', product_pol.name, exc_info=True)
             else:
                 return [
                     self.get_primary_header(exposure),
@@ -96,7 +96,7 @@ class ProductPackager:
             try:
                 cal_extensions = self.get_cal_extensions(exposure, 'WaveAB', 'BlazeAB')
             except:
-                log.error('Failed to find calibration files in header, cannot create %s', product_tell.filename)
+                log.error('Could not find calibrations from header, cannot create %s', product_tell.name, exc_info=True)
             else:
                 return [
                     self.get_primary_header(exposure),
@@ -139,8 +139,9 @@ class ProductPackager:
     def produce_generalized(self, path, config_builder, hdulist_operation=None):
         if self.create:
             hdu_configs = config_builder()
-            mef_config = MEFConfig(hdu_configs, hdulist_operation=hdulist_operation)
-            self.create_mef(mef_config, path)
+            if hdu_configs:
+                mef_config = MEFConfig(hdu_configs, hdulist_operation=hdulist_operation)
+                self.create_mef(mef_config, path)
 
     def get_primary_header(self, exposure):
         def remove_new_keys(header):

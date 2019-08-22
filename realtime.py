@@ -16,7 +16,7 @@ class RealtimeCache():
             }
             pickle.dump(cache, open(cls.CACHE_FILE, 'wb'))
         except (OSError, IOError) as e:
-            log.error('Failed to serialize realtime cache')
+            log.error('Failed to serialize realtime cache', exc_info=True)
 
     @classmethod
     def load_cache(self, current_sequence, calibration_processor):
