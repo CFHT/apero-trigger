@@ -15,18 +15,21 @@ class ObjectProcessor():
             is_telluric_corrected = self.telluric_correction(exposure)
             is_obj_fp = config.object.reference_fiber == FiberType.FP
             ccf_path = self.ccf(exposure, is_telluric_corrected, is_obj_fp)
+            if ObjectStep.PRODUCTS in self.steps:
+                self.packager.create_1d_spectra_product(exposure, is_telluric_corrected)
             return {
                 'extracted_path': extracted_path,
                 'ccf_path': ccf_path,
                 'is_ccf_calculated': True,
                 'is_telluric_corrected': is_telluric_corrected,
             }
-        else:
-            if config.object.target == TargetType.TELLURIC_STANDARD:
-                if ObjectStep.MKTELLU in self.steps:
-                    pass
-                    # TODO: need to update this to work with new creation model
-                    # self.drs.obj_mk_tellu(exposure)
+        elif config.object.target == TargetType.TELLURIC_STANDARD:
+            if ObjectStep.MKTELLU in self.steps:
+                pass
+                # TODO: need to update this to work with new creation model
+                # self.drs.obj_mk_tellu(exposure)
+        if ObjectStep.PRODUCTS in self.steps:
+            self.packager.create_1d_spectra_product(exposure)
         return {'extracted_path': extracted_path}
 
     def process_polar_seqeunce(self, exposures):
@@ -42,7 +45,7 @@ class ObjectProcessor():
         if ObjectStep.EXTRACT in self.steps:
             self.drs.cal_extract_RAW(exposure)
         if ObjectStep.PRODUCTS in self.steps:
-            self.packager.create_spec_product(exposure)
+            self.packager.create_2d_spectra_product(exposure)
         return exposure.e2ds('AB')
 
     def telluric_correction(self, exposure):

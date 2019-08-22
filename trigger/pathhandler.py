@@ -42,26 +42,27 @@ class Exposure:
     def preprocessed(self):
         return Path(self.temp_directory, self.raw.name.replace('.fits', '_pp.fits'))
 
-    def s1d(self, fiber):
-        return self.extracted_product('s1d', fiber)
+    def s1d(self, sample_space, fiber, telluric_corrected=False):
+        product_name = 's1d_' + sample_space
+        return self.extracted_product(product_name, fiber, telluric_corrected)
 
     def e2ds(self, fiber, telluric_corrected=False, telluric_reconstruction=False, flat_fielded=False):
         product_name = 'e2dsff' if flat_fielded else 'e2ds'
         assert not (telluric_corrected and telluric_reconstruction)
-        if telluric_corrected:
-            suffix = 'tellu_corrected'
-        elif telluric_reconstruction:
-            suffix = 'tellu_recon'
+        if telluric_reconstruction:
+            return self.extracted_product_general(product_name, fiber, 'tellu_recon')
         else:
-            suffix = None
-        return self.extracted_product(product_name, fiber, suffix)
+            return self.extracted_product(product_name, fiber, telluric_corrected)
 
     def ccf(self, fiber, mask, fp=True, telluric_corrected=False):
         product_name = 'ccf_' + ('fp_' if fp else '') + mask.replace('.mas', '')
-        suffix = 'tellu_corrected' if telluric_corrected else None
-        return self.extracted_product(product_name, fiber, suffix)
+        return self.extracted_product(product_name, fiber, telluric_corrected)
 
-    def extracted_product(self, product, fiber, suffix=None):
+    def extracted_product(self, product, fiber, telluric_corrected=False):
+        suffix = 'tellu_corrected' if telluric_corrected else None
+        return self.extracted_product_general(product, fiber, suffix)
+
+    def extracted_product_general(self, product, fiber, suffix=None):
         suffix = '_' + suffix if suffix else ''
         return self.reduced(product + '_' + fiber + suffix)
 

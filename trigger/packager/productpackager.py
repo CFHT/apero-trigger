@@ -4,7 +4,7 @@ from collections import defaultdict, OrderedDict
 import numpy as np
 from astropy.io import fits
 
-from .fitsbuilder import BinTableConfig, HDUConfig, MEFConfig
+from .fitsbuilder import BinTableBuilder, MEFBuilder, HDUBuilder
 from .fitsoperations import get_card, remove_keys, verify_duplicate_cards
 from ..common import FIBER_LIST, log
 
@@ -13,48 +13,57 @@ class ProductPackager:
     def __init__(self, trace, create):
         self.create = create and not trace
 
-    def create_spec_product(self, exposure):
-        # TODO: uppdate to use new s1d products
-        # self.create_1d_spectra_product(exposure)
-        self.create_2d_spectra_product(exposure)
-
-    def create_1d_spectra_product(self, exposure):
-        def update_hdu(hdu):
-            flux = hdu.data
-            errs = np.full(len(flux), np.nan)
-            wavelengths = self.resample_wcs_to_data(hdu.header, flux)
-            hdu.data = np.row_stack((flux, errs, wavelengths))
-
-        def config_builder():
-            bin_table_config = BinTableConfig(column_names=['Flux', 'FluxErr', 'Wave'],
-                                              column_units=['Relative Flux', 'Relative Flux', 'nm'])
-            extensions = [HDUConfig(fiber, exposure.s1d(fiber), hdu_operation=update_hdu, bin_table=bin_table_config)
-                          for fiber in FIBER_LIST]
-            return [
-                self.get_primary_header(exposure),
-                *extensions
-            ]
-
-        product_1d = exposure.final_product('s')
-        self.produce(product_1d, config_builder)
+    def create_1d_spectra_product(self, exposure, is_telluric_corrected=False):
+        product = exposure.final_product('s')
+        log.info('Creating %s', product)
+        try:
+            primary_hdu = self.get_primary_header(exposure)
+            extensions = []
+            for ext, ext_name in {'w': 'UniformWavelength', 'v': 'UniformVelocity'}.items():
+                input_files = {fiber: exposure.s1d(ext, fiber) for fiber in FIBER_LIST}
+                if is_telluric_corrected:
+                    input_files['ABTelluCorrected'] = exposure.s1d(ext, 'AB', telluric_corrected=True)
+                header = None
+                cols = None
+                for fiber, input_file in input_files.items():
+                    input_hdu_list = fits.open(input_file)
+                    input_hdu = input_hdu_list[1]
+                    if cols is None:
+                        cols = [BinTableBuilder.column_from_bin_table(input_hdu, 0, name='Wave')]
+                        header = input_hdu.header
+                    cols.append(BinTableBuilder.column_from_bin_table(input_hdu, 1, name='Flux' + fiber,
+                                                                      unit='Relative Flux'))
+                    cols.append(BinTableBuilder.column_from_bin_table(input_hdu, 2, name='FluxErr' + fiber,
+                                                                      unit='Relative Flux'))
+                table = fits.BinTableHDU.from_columns(columns=cols, header=header)
+                extensions.append(HDUBuilder.extension_from_hdu(ext_name, table))
+            hdu_list = MEFBuilder.create_hdu_list([primary_hdu, *extensions])
+            self.product_header_update(hdu_list)
+            hdu_list.writeto(product, overwrite=True)
+        except FileNotFoundError as err:
+            log.error('Creation of %s failed: unable to open file %s', product, err.filename)
+        except:
+            log.error('Creation of %s failed', product, exc_info=True)
 
     def create_2d_spectra_product(self, exposure):
-        def config_builder():
-            flux_extensions = [HDUConfig('Flux' + fiber, exposure.e2ds(fiber, flat_fielded=True))
-                               for fiber in FIBER_LIST]
-            try:
-                cal_extensions = self.get_cal_extensions(exposure)
-            except:
-                log.error('Could not find calibrations from header, cannot create %s', product_2d.name, exc_info=True)
-            else:
-                return [
-                    self.get_primary_header(exposure),
-                    *flux_extensions,
-                    *cal_extensions
-                ]
-
-        product_2d = exposure.final_product('e')
-        self.produce(product_2d, config_builder)
+        product = exposure.final_product('e')
+        log.info('Creating %s', product)
+        try:
+            primary_hdu = self.get_primary_header(exposure)
+            cal_extensions = self.get_cal_extensions(exposure)
+            flux_extensions = []
+            for fiber in FIBER_LIST:
+                e2ds = exposure.e2ds(fiber, flat_fielded=True)
+                flux_extensions.append(HDUBuilder.extension_from_file('Flux' + fiber, e2ds))
+            hdu_list = MEFBuilder.create_hdu_list([primary_hdu, *flux_extensions, *cal_extensions])
+            self.product_header_update(hdu_list)
+            hdu_list.writeto(product, overwrite=True)
+        except CalExtensionError:
+            log.error('Creation of %s failed: could not find calibrations from header', product.name, exc_info=True)
+        except FileNotFoundError as err:
+            log.error('Creation of %s failed: unable to open file %s', product, err.filename)
+        except:
+            log.error('Creation of %s failed', product, exc_info=True)
 
     def create_pol_product(self, exposure):
         def wipe_snr(header):
@@ -62,123 +71,131 @@ class ProductPackager:
                 key = 'SNR' + str(i)
                 header[key] = 'Unknown'
 
-        def update_then_copy_input_files_to_primary(hdulist):
-            self.product_header_update(hdulist)
-            primary_header = hdulist[0].header
-            pol_header = hdulist[1].header
+        product = exposure.final_product('p')
+        log.info('Creating %s', product)
+        try:
+            primary_hdu = self.get_primary_header(exposure)
+            cal_extensions = self.get_cal_extensions(exposure, 'WaveAB', 'BlazeAB')
+            pol_extensions = []
+            pol = fits.open(exposure.reduced('e2ds_pol'))
+            pol_extensions.extend([
+                HDUBuilder.extension_from_hdu('Pol', pol[0], header_operation=wipe_snr),
+                HDUBuilder.extension_from_hdu('PolErr', pol[1]),
+            ])
+            stokes_i = fits.open(exposure.reduced('e2ds_AB_StokesI'))
+            pol_extensions.extend([
+                HDUBuilder.extension_from_hdu('StokesI', stokes_i[0], header_operation=wipe_snr),
+                HDUBuilder.extension_from_hdu('StokesIErr', stokes_i[1]),
+            ])
+            pol_extensions.extend([
+                HDUBuilder.extension_from_file('Null1', exposure.reduced('e2ds_null1_pol'), header_operation=wipe_snr),
+                HDUBuilder.extension_from_file('Null2', exposure.reduced('e2ds_null2_pol'), header_operation=wipe_snr),
+            ])
+            hdu_list = MEFBuilder.create_hdu_list([primary_hdu, *pol_extensions, *cal_extensions])
+            self.product_header_update(hdu_list)
+
+            # We copy input files to primary header after duplicate keys have been cleaned out
+            primary_header = hdu_list[0].header
+            pol_header = hdu_list[1].header
             in_file_cards = [card for card in pol_header.cards if card[0].startswith('FILENAM')]
             for card in in_file_cards:
                 primary_header.insert('FILENAME', card)
             primary_header.remove('FILENAME', ignore_missing=True)
 
-        def config_builder():
-            try:
-                cal_extensions = self.get_cal_extensions(exposure, 'WaveAB', 'BlazeAB')
-            except:
-                log.error('Could not find calibrations from header, cannot create %s', product_pol.name, exc_info=True)
-            else:
-                return [
-                    self.get_primary_header(exposure),
-                    HDUConfig('Pol', exposure.reduced('e2ds_pol'), header_operation=wipe_snr),
-                    HDUConfig('PolErr', exposure.reduced('e2ds_pol'), extension=1),
-                    HDUConfig('StokesI', exposure.reduced('e2ds_AB_StokesI'), header_operation=wipe_snr),
-                    HDUConfig('StokesIErr', exposure.reduced('e2ds_AB_StokesI'), extension=1),
-                    HDUConfig('Null1', exposure.reduced('e2ds_null1_pol'), header_operation=wipe_snr),
-                    HDUConfig('Null2', exposure.reduced('e2ds_null2_pol'), header_operation=wipe_snr),
-                    *cal_extensions
-                ]
-
-        product_pol = exposure.final_product('p')
-        self.produce_generalized(product_pol, config_builder, update_then_copy_input_files_to_primary)
+            hdu_list.writeto(product, overwrite=True)
+        except CalExtensionError:
+            log.error('Creation of %s failed: could not find calibrations from header', product.name, exc_info=True)
+        except FileNotFoundError as err:
+            log.error('Creation of %s failed: unable to open file %s', product, err.filename)
+        except:
+            log.error('Creation of %s failed', product, exc_info=True)
 
     def create_tell_product(self, exposure):
-        def config_builder():
-            try:
-                cal_extensions = self.get_cal_extensions(exposure, 'WaveAB', 'BlazeAB')
-            except:
-                log.error('Could not find calibrations from header, cannot create %s', product_tell.name, exc_info=True)
-            else:
-                return [
-                    self.get_primary_header(exposure),
-                    HDUConfig('FluxAB', exposure.e2ds('AB', telluric_corrected=True, flat_fielded=True)),
-                    *cal_extensions,
-                    HDUConfig('Recon', exposure.e2ds('AB', telluric_reconstruction=True, flat_fielded=True))
-                ]
-
-        product_tell = exposure.final_product('t')
-        self.produce(product_tell, config_builder)
+        product = exposure.final_product('t')
+        log.info('Creating %s', product)
+        try:
+            cal_extensions = self.get_cal_extensions(exposure, 'WaveAB', 'BlazeAB')
+        except:
+            log.error('Could not find calibrations from header, cannot create %s', product.name, exc_info=True)
+            return
+        try:
+            primary_hdu = self.get_primary_header(exposure)
+            flux = HDUBuilder.extension_from_file('FluxAB', exposure.e2ds('AB', telluric_corrected=True,
+                                                                          flat_fielded=True))
+            recon = HDUBuilder.extension_from_file('Recon', exposure.e2ds('AB', telluric_reconstruction=True,
+                                                                          flat_fielded=True))
+            hdu_list = MEFBuilder.create_hdu_list([primary_hdu, flux, *cal_extensions, recon])
+            self.product_header_update(hdu_list)
+            hdu_list.writeto(product, overwrite=True)
+        except FileNotFoundError as err:
+            log.error('Creation of %s failed: unable to open file %s', product, err.filename)
+        except:
+            log.error('Creation of %s failed', product, exc_info=True)
 
     def create_ccf_product(self, exposure, ccf_mask, telluric_corrected, fp):
+        def resample_wcs_to_data(header, data):
+            c_start = float(header['CRVAL1'])
+            c_delta = float(header['CDELT1'])
+            num_bins = len(data)
+            c_end = c_start + c_delta * num_bins
+            return np.linspace(c_start, c_end, num=num_bins, endpoint=False)
+
         def fix_header(header):
             header.insert('CRVAL1', ('CRPIX1', 0))
 
-        def update_primary_header(header):
-            fix_header(header)
-
         def update_hdu(hdu):
             existing = hdu.data
-            velocities = self.resample_wcs_to_data(hdu.header, existing[0])
+            velocities = resample_wcs_to_data(hdu.header, existing[0])
             hdu.data = np.row_stack((velocities, existing))
-            fix_header(hdu.header)
 
-        def config_builder():
+        product = exposure.final_product('v')
+        log.info('Creating %s', product)
+        try:
             ccf_path = exposure.ccf('AB', ccf_mask, telluric_corrected=telluric_corrected, fp=fp)
-            bin_table_config = BinTableConfig(column_names=['Velocity'] + self.get_default_columns() + ['Combined'],
-                                              column_units=['km/s'] + [None] * 50)
-            return [
-                HDUConfig(None, ccf_path, header_operation=update_primary_header, primary_header_only=True),
-                HDUConfig('CCF', ccf_path, hdu_operation=update_hdu, bin_table=bin_table_config)
-            ]
-
-        product_ccf = exposure.final_product('v')
-        self.produce_generalized(product_ccf, config_builder, None)
-
-    def produce(self, path, config_builder):
-        self.produce_generalized(path, config_builder, hdulist_operation=self.product_header_update)
-
-    def produce_generalized(self, path, config_builder, hdulist_operation=None):
-        if self.create:
-            hdu_configs = config_builder()
-            if hdu_configs:
-                mef_config = MEFConfig(hdu_configs, hdulist_operation=hdulist_operation)
-                self.create_mef(mef_config, path)
+            ccf_input_hdu = fits.open(ccf_path)[0]
+            fix_header(ccf_input_hdu.header)
+            primary_hdu = fits.PrimaryHDU(header=ccf_input_hdu.header)
+            column_configs = [BinTableBuilder.column_config(name='Velocity', unit='km/s'),
+                             *(BinTableBuilder.column_config(name='Order'+ str(i)) for i in range(0, 49)),
+                              BinTableBuilder.column_config(name='Combined')]
+            update_hdu(ccf_input_hdu)
+            ccf_out_hdu = BinTableBuilder.hdu_from_image('CCF', ccf_input_hdu, column_configs)
+            hdu_list = MEFBuilder.create_hdu_list([primary_hdu, ccf_out_hdu])
+            hdu_list.writeto(product, overwrite=True)
+        except FileNotFoundError as err:
+            log.error('Creation of %s failed: unable to open file %s', product, err.filename)
+        except:
+            log.error('Creation of %s failed', product, exc_info=True)
 
     def get_primary_header(self, exposure):
-        def remove_new_keys(header):
-            remove_keys(header, ('DRSPID', 'INF1000', 'QCC', 'QCC000N',
-                                 'QCC001N', 'QCC001V', 'QCC001L', 'QCC001P',
-                                 'QCC002N', 'QCC002V', 'QCC002L', 'QCC002P'))
+        hdu = fits.open(exposure.preprocessed)[0]
+        remove_keys(hdu.header, ('DRSPID', 'INF1000', 'QCC', 'QCC000N',
+                             'QCC001N', 'QCC001V', 'QCC001L', 'QCC001P',
+                             'QCC002N', 'QCC002V', 'QCC002L', 'QCC002P'))
+        return fits.PrimaryHDU(header=hdu.header)
 
-        return HDUConfig(None, exposure.preprocessed, primary_header_only=True, header_operation=remove_new_keys)
-
-    def get_default_columns(self):
-        return ['Order' + str(i) for i in range(0, 49)]
-
-    def product_header_update(self, hdulist):
-        if len(hdulist) <= 1:
+    def product_header_update(self, hdu_list):
+        if len(hdu_list) <= 1:
             log.error('Trying to create product primary HDU with no extensions')
             return
-        primary_header = hdulist[0].header
-        ext_header = hdulist[1].header
+        primary_header = hdu_list[0].header
+        ext_header = hdu_list[1].header
         primary_header.insert('PVERSION', get_card(ext_header, 'VERSION'), after=True)
         remove_keys(primary_header, ('BITPIX', 'NAXIS', 'NAXIS1', 'NAXIS2'))
         if ext_header.get('EXTNAME') == 'Pol':
             primary_header['EXPTIME'] = (ext_header['EXPTIME'], '[sec] total integration time of 4 exposures')
             primary_header['MJDATE'] = (ext_header['MJDATE'], 'Modified Julian Date at middle of sequence')
-        for extension in hdulist[1:]:
+        for extension in hdu_list[1:]:
             extname = extension.header.get('EXTNAME')
             if extname.startswith('Wave') or extname.startswith('Blaze') or extname.endswith('Err'):
                 continue
             dupe_keys = verify_duplicate_cards(extension.header, primary_header.items())
             remove_keys(extension.header, dupe_keys)
-        self.add_extension_description(hdulist)
-
-    @staticmethod
-    def add_extension_description(hdulist):
-        ext_names = [hdu.header.get('EXTNAME') for hdu in hdulist[1:]]
+        # add extension descriptions
+        ext_names = [hdu.header.get('EXTNAME') for hdu in hdu_list[1:]]
         description = 'This file contains the following extensions: ' + ', '.join(ext_names)
         for line in textwrap.wrap(description, 71):
-            hdulist[0].header.insert('FILENAME', ('COMMENT', line))
+            hdu_list[0].header.insert('FILENAME', ('COMMENT', line))
 
     def get_cal_extensions(self, exposure, *args):
         def keep_key(key):
@@ -187,14 +204,18 @@ class ProductPackager:
         def cleanup_keys(header):
             remove_keys(header, [key for key in header.keys() if not keep_key(key)])
 
-        def extension_operation(ext_name):
-            if ext_name.startswith('Wave') or ext_name.startswith('Blaze'):
-                return cleanup_keys
-            return None
-
-        cal_path_dict = self.get_cal_paths(exposure)
-        ext_names = args if args else cal_path_dict.keys()
-        return [HDUConfig(name, cal_path_dict[name], header_operation=extension_operation(name)) for name in ext_names]
+        try:
+            cal_path_dict = self.get_cal_paths(exposure)
+            ext_names = args if args else cal_path_dict.keys()
+            extensions = []
+            for name in ext_names:
+                extension = HDUBuilder.extension_from_file(name, cal_path_dict[name])
+                if name.startswith('Wave') or name.startswith('Blaze'):
+                    cleanup_keys(extension.header)
+                extensions.append(extension)
+            return extensions
+        except:
+            raise CalExtensionError()
 
     def get_cal_paths(self, exposure):
         headers_per_fiber = defaultdict(OrderedDict)
@@ -213,21 +234,6 @@ class ProductPackager:
             extensions['Blaze' + fiber] = reduced_directory.joinpath(filename)
         return extensions
 
-    @classmethod
-    def resample_wcs_to_data(cls, header, data):
-        c_start = float(header['CRVAL1'])
-        c_delta = float(header['CDELT1'])
-        num_bins = len(data)
-        c_end = c_start + c_delta * num_bins
-        return np.linspace(c_start, c_end, num=num_bins, endpoint=False)
 
-    def create_mef(self, mef_config, output_file):
-        log.info('Creating MEF %s', output_file)
-        try:
-            hdu_list = mef_config.create_hdu_list()
-        except FileNotFoundError as err:
-            log.error('Creation of %s failed: unable to open file %s', output_file, err.filename)
-        except:
-            log.error('Creation of %s failed', output_file, exc_info=True)
-        else:
-            hdu_list.writeto(output_file, overwrite=True)
+class CalExtensionError(Exception):
+    pass
