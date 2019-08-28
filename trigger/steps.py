@@ -52,7 +52,9 @@ class DrsSteps(namedtuple('DrsSteps', ('preprocess', 'calibrations', 'objects'))
 
     @classmethod
     def all(cls):
-        return cls(True, cls.calibration_steps_factory.all(), cls.object_steps_factory.all())
+        return cls(cls.preprocess_steps_factory.all(),
+                   cls.calibration_steps_factory.all(),
+                   cls.object_steps_factory.all())
 
     @classmethod
     def from_keys(cls, keys):

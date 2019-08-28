@@ -1,6 +1,6 @@
 from astropy.io import fits
 
-from trigger import AbstractCustomHandler, DrsTrigger, ExposureConfig
+from trigger import AbstractCustomHandler, DrsTrigger, ExposureConfig, DrsSteps
 from .dbinterface import QsoDatabase, DatabaseHeaderConverter
 from .director import director_message
 from .distribution import ProductDistributorFactory, distribute_raw_file
@@ -97,3 +97,9 @@ class CfhtDrsTrigger(DrsTrigger):
 class CfhtRealtimeTrigger(CfhtDrsTrigger):
     def __init__(self, ccf_params):
         super().__init__(CfhtDrsSteps.all(), ccf_params, realtime=True)
+
+
+class CfhtRealtimeTester(CfhtDrsTrigger):
+    def __init__(self, ccf_params):
+        steps = CfhtDrsSteps(*DrsSteps.all(), distraw=False, distribute=False, database=False)
+        super().__init__(steps, ccf_params, realtime=True)

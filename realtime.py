@@ -23,7 +23,7 @@ class RealtimeCache():
         try:
             cache = pickle.load(open(self.CACHE_FILE, 'rb'))
             current_sequence[:] = cache.get('current_sequence')
-            calibration_processor.set_state(cache)
+            calibration_processor.set_state(**cache)
         except (OSError, IOError):
             log.warning('No realtime cache found. This should not appear after the first time this script is run.')
 
@@ -34,15 +34,17 @@ def realtime(raw_path):
         loader = DrsLoader()
         cfht = loader.get_loaded_trigger_module()
         night, file = setup_symlink(raw_path, cfht)
-        trigger = cfht.CfhtRealtimeTrigger()
+        ccf_params = cfht.CcfParams('masque_sept18_andres_trans50.mas', 0, 200, 1)
+        trigger = cfht.CfhtRealtimeTrigger(ccf_params)
         if not trigger.preprocess(night, file):
             return
         trigger.process_file(night, file)
         current_sequence = []
         RealtimeCache.load_cache(current_sequence, trigger.processor.calibration_processor)
-        completed_sequence = trigger.sequence_checker(night, current_sequence, file)
-        if completed_sequence:
-            trigger.process_sequence(night, completed_sequence)
+        completed_sequences = trigger.sequence_checker(night, current_sequence, file)
+        for completed_sequence in completed_sequences:
+            if completed_sequence:
+                trigger.process_sequence(night, completed_sequence)
         RealtimeCache.save_cache(current_sequence, trigger.processor.calibration_processor)
     except Exception as e:
         log.error('Error during realtime processing', exc_info=True)
