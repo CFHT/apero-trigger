@@ -19,7 +19,7 @@ if __name__ == '__main__':
     realtime_parse.add_argument('filepath')
     listener_parse = subparsers.add_parser('listener', help='Run local http listener for automated realtime calls')
     listener_parse.add_argument('--port', type=int, default=9998)
-    listener_parse.add_argument('--processes', type=int, default=4)
+    listener_parse.add_argument('--processes', type=int, default=6)
 
     args = parser.parse_args()
 
