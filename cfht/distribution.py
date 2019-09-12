@@ -55,7 +55,7 @@ class ProductDistributor:
                 run_id = hdulist[0].header['RUNID']
                 hdulist[0].header.update(self.header_values)
                 destination = get_distribution_path(file, run_id, subdir)
-                hdulist.writeto(destination)
+                hdulist.writeto(destination, overwrite=True)
             except FileNotFoundError as err:
                 log.error('Distribution of %s failed: unable to open file %s', file, err.filename)
             except:
