@@ -15,10 +15,7 @@ class HeaderChecker:
 
     def __lazy_loading(self):
         if not self.__header:
-            try:
-                hdulist = fits.open(self.file)
-            except:
-                raise RuntimeError('Failed to open', self.file)
+            hdulist = fits.open(self.file)
             self.__header = hdulist[0].header
 
     def is_object(self):

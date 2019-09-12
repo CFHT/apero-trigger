@@ -61,14 +61,27 @@ class BaseDrsTrigger:
             self.custom_handler.exposure_post_process(exposure, result)
 
     def process_sequence(self, night, files):
-        exposures = [Exposure(night, file) for file in files]
-        sequence_config = ExposureConfig.from_file(exposures[0].preprocessed)
-        for exposure in exposures:
-            exposure_config = ExposureConfig.from_file(exposure.preprocessed)
-            assert exposure_config.is_matching_type(sequence_config), 'Exposure type changed mid-sequence'
-        result = self.processor.process_sequence(sequence_config, exposures)
-        if self.custom_handler:
-            self.custom_handler.sequence_post_process(exposures, result)
+        exposures = []
+        sequence_config = None
+        for file in files:
+            exposure = Exposure(night, file)
+            try:
+                if sequence_config is None:
+                    sequence_config = ExposureConfig.from_file(exposure.preprocessed)
+                else:
+                    exposure_config = ExposureConfig.from_file(exposure.preprocessed)
+                    assert exposure_config.is_matching_type(sequence_config), 'Exposure type changed mid-sequence'
+                exposures.append(exposure)
+            except FileNotFoundError:
+                log.error('Failed to open file %s while processing sequence, skipping file', exposure.preprocessed)
+            except AssertionError as err:
+                log.error(err.args)
+        if exposures:
+            result = self.processor.process_sequence(sequence_config, exposures)
+            if self.custom_handler:
+                self.custom_handler.sequence_post_process(exposures, result)
+        else:
+            log.error('No files found in sequence, skipping')
 
     # Appends file to current_sequence, and if sequence is now complete, returns it and clears current_sequence.
     @staticmethod

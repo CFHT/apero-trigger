@@ -22,7 +22,9 @@ class RealtimeCache():
     def load_cache(self, current_sequence, calibration_processor):
         try:
             cache = pickle.load(open(self.CACHE_FILE, 'rb'))
-            current_sequence[:] = cache.get('current_sequence')
+            sequence = cache.get('current_sequence')
+            if sequence:
+                current_sequence[:] = sequence
             calibration_processor.set_state(**cache)
         except (OSError, IOError):
             log.warning('No realtime cache found. This should not appear after the first time this script is run.')
