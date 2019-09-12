@@ -25,7 +25,7 @@ class CfhtHandler(AbstractCustomHandler):
                           'obj_mk_tellu',
                           'obj_fit_tellu',
                           'pol_spirou')
-        if self.director_warnings and not error.startswith(ignore_modules):
+        if self.director_warnings and not error.command_string.startswith(ignore_modules):
             director_message(str(error), level='warning')
 
     def exposure_pre_process(self, exposure):
