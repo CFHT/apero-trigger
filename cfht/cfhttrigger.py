@@ -7,7 +7,7 @@ from .distribution import ProductDistributorFactory, distribute_raw_file
 from .fileselector import CfhtFileSelector
 from .steps import CfhtDrsSteps
 
-TRIGGER_VERSION = '021'
+TRIGGER_VERSION = '022'
 
 
 class CfhtHandler(AbstractCustomHandler):
