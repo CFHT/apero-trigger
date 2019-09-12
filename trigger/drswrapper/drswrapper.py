@@ -5,7 +5,6 @@ import cal_DARK_spirou
 import cal_FF_RAW_spirou
 import cal_HC_E2DS_EA_spirou
 import cal_SHAPE_spirou
-import cal_SLIT_spirou
 import cal_WAVE_E2DS_EA_spirou
 import cal_extract_RAW_spirou
 import cal_loc_RAW_spirou
@@ -39,9 +38,6 @@ class DRS:
 
     def cal_FF_RAW(self, exposures):
         return self.__run_sequence(cal_FF_RAW_spirou, exposures)
-
-    def cal_SLIT(self, exposures):
-        return self.__run_sequence(cal_SLIT_spirou, exposures)
 
     def cal_SHAPE(self, hc_exposure, fp_exposures):
         night = hc_exposure.night

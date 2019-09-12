@@ -11,7 +11,6 @@ class CalibrationStep(Enum):
     DARK = auto()
     BADPIX = auto()
     LOC = auto()
-    SLIT = auto()
     SHAPE = auto()
     FF = auto()
     WAVE = auto()

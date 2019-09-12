@@ -64,6 +64,7 @@ class CalibrationProcessor():
                     return True
 
         def shape_logic():
+            self.process_remaining(CalibrationType.FP_FP, lambda seq: None)
             last_fp_sequence = self.get_last_sequence_of(CalibrationType.FP_FP)
             if last_fp_sequence:
                 process_shape = lambda hc_sequence: self.drs.cal_SHAPE(hc_sequence[-1], last_fp_sequence)
@@ -83,7 +84,6 @@ class CalibrationProcessor():
         self.process_step_generalized(CalibrationStep.BADPIX, badpix_logic)
         self.process_step_simple(CalibrationStep.LOC, CalibrationType.DARK_FLAT, self.drs.cal_loc_RAW)
         self.process_step_simple(CalibrationStep.LOC, CalibrationType.FLAT_DARK, self.drs.cal_loc_RAW)
-        self.process_step_simple(CalibrationStep.SLIT, CalibrationType.FP_FP, self.drs.cal_SLIT)
         self.process_step_generalized(CalibrationStep.SHAPE, shape_logic)
         self.process_step_simple(CalibrationStep.FF, CalibrationType.FLAT_FLAT, self.drs.cal_FF_RAW)
         if CalibrationStep.WAVE in self.steps:
