@@ -5,6 +5,7 @@ from .common import log
 from .drswrapper import DRS_VERSION
 from .fileselector import FileSelector
 from .pathhandler import Night, RootDirectories
+from .steps import ObjectStep
 
 
 class DrsTrigger(BaseDrsTrigger):
@@ -42,6 +43,10 @@ class DrsTrigger(BaseDrsTrigger):
         subrange = self.__get_subrange(files, start_file, end_file)
         if subrange:
             self.reduce(night, subrange)
+
+    def mk_tellu(self):
+        if self.steps.object_steps and ObjectStep.MKTELLU in self.steps.object_steps:
+            self.processor.drs.obj_mk_tellu()
 
     def __find_nights(self, night_pattern):
         night_root = RootDirectories.input

@@ -21,7 +21,7 @@ def get_base_argument_parser(additional_step_options = None):
 
     steps_options = ['preprocess', 'ppcal', 'ppobj',
                      'calibrations', 'dark', 'badpix', 'loc', 'slit', 'shape', 'ff', 'wave',
-                     'objects', 'extract', 'pol', 'fittellu', 'ccf', 'products']
+                     'objects', 'extract', 'pol', 'fittellu', 'mktemplate' 'ccf', 'products']
     if additional_step_options:
         steps_options.extend(additional_step_options)
     reduce_parser.add_argument('--steps', nargs='+', choices=steps_options)
@@ -46,6 +46,7 @@ def get_base_argument_parser(additional_step_options = None):
                                                   help='Reduce a sequence of files together')
     reduce_sequence_parse.add_argument('filenames', nargs='+')
     subparsers.add_parser('telludb', parents=[multi_night_parser], help='Process telluric standards across all nights')
+    subparsers.add_parser('retellu', parents=[multi_night_parser], help='Update existing telludb from all nights')
     return parser, subparsers
 
 
@@ -55,10 +56,12 @@ def reduce_execute(args, drs_class, steps_class, filters_class, ccf_params_class
         steps = steps_class.from_keys(args.steps)
     elif args.command == 'telludb':
         steps = steps_class.from_keys(['extract'])
+    elif args.command == 'retellu':
+        steps = steps_class.from_keys(['fittellu', 'mktemplate'])
     else:
         steps = steps_class.all()
     trigger = drs_class(steps, ccf_params=ccf_params, trace=args.trace)
-    filters = filters_class(runids= args.runid, targets=args.target)
+    filters = filters_class(runids=args.runid, targets=args.target)
     if args.command == 'all':
         trigger.reduce_all_nights(filters=filters, num_processes=args.parallel)
     elif args.command == 'qrunid':
@@ -77,6 +80,11 @@ def reduce_execute(args, drs_class, steps_class, filters_class, ccf_params_class
         trigger.process_sequence(args.night, args.filenames)
     elif args.command == 'telludb':
         filters = filters_class.telluric_standards()
+        trigger.reduce_all_nights(filters=filters, num_processes=args.parallel)
+        trigger.mk_tellu()
+    elif args.command == 'retellu':
+        trigger.mk_tellu()
+        filters = filters_class(unique_targets=True)
         trigger.reduce_all_nights(filters=filters, num_processes=args.parallel)
 
 

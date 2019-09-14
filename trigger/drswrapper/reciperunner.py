@@ -17,13 +17,13 @@ class RecipeRunner:
         self.log_command = log_command
         self.error_handler = error_handler
 
-    def run(self, module, night, *args):
+    def run(self, module, *args):
         # Get a string representation of the command, ideally matching what the command line call would be
-        command_string = ' '.join((module.__NAME__, night, *map(str, flatten(args))))
+        command_string = ' '.join((module.__NAME__, *map(str, flatten(args))))
         if self.log_command:
             log.info(command_string)
         try:
-            return self.__run(module, night, *args)
+            return self.__run(module, *args)
         except SystemExit:
             failure = RecipeFailure('system exit', command_string)
             log.error(failure)
@@ -37,12 +37,12 @@ class RecipeRunner:
             log.error(failure, exc_info=True)
             self.__handle_error(failure)
 
-    def __run(self, module, night, *args):
+    def __run(self, module, *args):
         if self.trace:
             return True
         else:
             sys.argv = [sys.argv[0]]  # Wipe out argv so DRS doesn't rely on CLI arguments instead of what is passed in
-            locals = module.main(night, *args)
+            locals = module.main(*args)
             qc_passed = locals.get('passed')
             qc_failures = locals.get('fail_msg')
             if qc_failures and not qc_passed:
