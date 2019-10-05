@@ -43,6 +43,7 @@ class CfhtHandler(AbstractCustomHandler):
                 exposure_status = None
             distributor = self.distributor_factory.get_exposure_distributor(exposure_status)
             distributor.distribute_product(exposure, 'e')
+            distributor.distribute_product(exposure, 's')
             if result.get('is_telluric_corrected'):
                 distributor.distribute_product(exposure, 't')
             if result.get('is_ccf_calculated'):
