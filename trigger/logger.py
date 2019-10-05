@@ -1,7 +1,6 @@
 import logging, sys
 
-log = logging.getLogger('drs_trigger')
-
+from .common import log
 
 class LogFormatter(logging.Formatter):
     def __init__(self, format='%(levelname)s: %(message)s'):

@@ -3,7 +3,7 @@ from collections import defaultdict, OrderedDict
 from urllib.error import URLError
 from urllib.request import Request, urlopen
 
-from logger import logger
+from trigger import log
 
 keyfile = '/h/spirou/bin/.cfht_access'
 
@@ -14,12 +14,12 @@ class QsoDatabase:
             with open(keyfile, 'r') as fileread:
                 self.bearer_token = fileread.read().strip()
         except:
-            logger.error('Failed to load API bearer token, will not be able to access database', exc_info=False)
+            log.error('Failed to load API bearer token, will not be able to access database', exc_info=False)
             self.bearer_token = None
 
     def send_pipeline_headers(self, header_dict):
         if not self.bearer_token:
-            logger.warning('No bearer token loaded, cannot send values to the database')
+            log.warning('No bearer token loaded, cannot send values to the database')
             return
         data = {
             'bearer_token': self.bearer_token,
@@ -29,7 +29,7 @@ class QsoDatabase:
         try:
             self.json_request(url, data)
         except:
-            logger.error('Error sending values %s to database', header_dict, exc_info=True)
+            log.error('Error sending values %s to database', header_dict, exc_info=True)
 
     def get_exposure(self, obsid):
         result = self.get_exposure_range(obsid, obsid)
@@ -45,11 +45,11 @@ class QsoDatabase:
                 }
             })
         except URLError:
-            logger.error('Error fetching exposures for obsid range %s-%s', first, last, exc_info=True)
+            log.error('Error fetching exposures for obsid range %s-%s', first, last, exc_info=True)
 
     def get_exposures_status(self, request_data):
         if not self.bearer_token:
-            logger.warning('No bearer token loaded, cannot fetch values from the database')
+            log.warning('No bearer token loaded, cannot fetch values from the database')
             return None
         auth_headers = {'Authorization': 'Bearer ' + self.bearer_token}
         url = 'https://api.cfht.hawaii.edu/op/exposures'
