@@ -1,6 +1,6 @@
 from astropy.io import fits
 
-from trigger import AbstractCustomHandler, DrsTrigger, ExposureConfig, DrsSteps
+from trigger import AbstractCustomHandler, DrsTrigger, ExposureConfig, DrsSteps, log
 from .dbinterface import QsoDatabase, DatabaseHeaderConverter
 from .director import director_message
 from .distribution import ProductDistributorFactory, distribute_raw_file
@@ -73,12 +73,15 @@ class CfhtHandler(AbstractCustomHandler):
         if not self.updating_database:
             return
         db_headers = {'obsid': str(exposure.odometer)}
-        if exposure_path:
-            with fits.open(exposure_path) as hdu_list:
-                db_headers.update(DatabaseHeaderConverter.extracted_header_to_db(hdu_list[0].header))
-        if ccf_path:
-            with fits.open(ccf_path) as hdu_list:
-                db_headers.update(DatabaseHeaderConverter.ccf_header_to_db(hdu_list[0].header))
+        try:
+            if exposure_path:
+                with fits.open(exposure_path) as hdu_list:
+                    db_headers.update(DatabaseHeaderConverter.extracted_header_to_db(hdu_list[0].header))
+            if ccf_path:
+                with fits.open(ccf_path) as hdu_list:
+                    db_headers.update(DatabaseHeaderConverter.ccf_header_to_db(hdu_list[0].header))
+        except FileNotFoundError as err:
+            log.warning('File not found during database update: %s', err.filename)
         self.database.send_pipeline_headers(db_headers)
 
 
