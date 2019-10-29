@@ -113,8 +113,12 @@ class BaseDrsTrigger:
         current_sequence = []
         last_index = 0
         for file in files:
-            exposure = Exposure(night, file)
-            header = HeaderChecker(exposure.raw)
+            if night is not None:
+                exposure = Exposure(night, file)
+                file_path = exposure.raw
+            else:
+                file_path = file
+            header = HeaderChecker(file_path)
             exp_index, exp_total = header.get_exposure_index_and_total()
             if exp_index < last_index + 1:
                 if exp_index == 1:
@@ -136,3 +140,7 @@ class BaseDrsTrigger:
         if not ignore_incomplete_last and current_sequence:
             finished_sequences.append(current_sequence.copy())
         return finished_sequences
+
+    @staticmethod
+    def Exposure(night, file):
+        return Exposure(night, file)

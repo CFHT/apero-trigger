@@ -56,7 +56,7 @@ class Realtime:
             # self.cursor = new_exposures[-1].get_timestamp()  # THIS IS NOT A REAL METHOD
             self.sequence_mapper.add_unmapped_exposures(new_exposures)
             unmapped_exposures = self.sequence_mapper.get_unmapped_exposures()
-            completed_sequences = self.sequence_finder(unmapped_exposures)
+            completed_sequences = self.sequence_finder(None, unmapped_exposures)
             self.sequence_mapper.mark_sequences_complete(completed_sequences)
             for exposure in new_exposures:
                 self.exposure_in_queue.put(exposure)

@@ -103,7 +103,7 @@ class CfhtRealtimeTrigger(CfhtDrsTrigger):
         super().__init__(CfhtDrsSteps.all(), ccf_params, realtime=True)
 
     def find_sequences(self, night, files):
-        super().find_sequences(night, files, ignore_incomplete_last=True)
+        return super().find_sequences(night, files, ignore_incomplete_last=True)
 
 
 class CfhtRealtimeTester(CfhtDrsTrigger):

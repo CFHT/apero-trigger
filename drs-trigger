@@ -22,7 +22,7 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     log_files = args.logfile if args.logfile else []
-    if args.command == 'realtime':
+    if args.command == 'realtime' or args.command == 'listener':
         timestamp = datetime.datetime.now().strftime("error-report-%Y%m%d-%H%M%S")
         log_files.append((timestamp, 'ERROR'))
     configure_logger(console_level=args.loglevel, log_files=log_files)
@@ -30,7 +30,7 @@ if __name__ == '__main__':
     if args.config is not None:
         DrsLoader.set_drs_config_subdir(args.config)
 
-    if args.command == 'realtime':
+    if args.command == 'realtime' or args.command == 'listener':
         queue = run_listener(args.port)
         start_realtime(args.processes, queue)
     else:

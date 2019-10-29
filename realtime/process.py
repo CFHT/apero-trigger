@@ -58,7 +58,7 @@ class RealtimeProcessor:
                 log.warning('No calibration state file found. This should only appear the first time realtime is run.')
             result = self.trigger.process_sequence(nights[0], files)
             # We only save the calibration state if the sequence was a calibration sequence.
-            if 'calibrations_complete' in result:
+            if result and 'calibrations_complete' in result:
                 self.calibration_cache.save(self.trigger.processor.calibration_processor.state)
 
     def __setup_symlink(self, session_path):

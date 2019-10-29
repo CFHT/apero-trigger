@@ -38,3 +38,4 @@ class ApiBridge:
         files = []
         while not self.queue.empty():
             files.append(self.queue.get(block=False))
+        return files
