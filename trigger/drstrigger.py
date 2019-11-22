@@ -45,8 +45,7 @@ class DrsTrigger(BaseDrsTrigger):
             self.reduce(night, subrange)
 
     def mk_tellu(self):
-        if self.steps.object_steps and ObjectStep.MKTELLU in self.steps.object_steps:
-            self.processor.drs.obj_mk_tellu()
+        self.processor.drs.obj_mk_tellu()
 
     def __find_nights(self, night_pattern):
         night_root = RootDirectories.input
