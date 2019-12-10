@@ -5,12 +5,13 @@ import cal_DARK_spirou
 import cal_FF_RAW_spirou
 import cal_HC_E2DS_EA_spirou
 import cal_SHAPE_spirou
-import cal_SLIT_spirou
 import cal_WAVE_E2DS_EA_spirou
 import cal_extract_RAW_spirou
 import cal_loc_RAW_spirou
 import cal_preprocess_spirou
 import obj_fit_tellu
+import obj_mk_obj_template
+import obj_mk_tellu_db
 import pol_spirou
 
 from .reciperunner import RecipeRunner
@@ -40,9 +41,6 @@ class DRS:
     def cal_FF_RAW(self, exposures):
         return self.__run_sequence(cal_FF_RAW_spirou, exposures)
 
-    def cal_SLIT(self, exposures):
-        return self.__run_sequence(cal_SLIT_spirou, exposures)
-
     def cal_SHAPE(self, hc_exposure, fp_exposures):
         night = hc_exposure.night
         hc_file = hc_exposure.preprocessed.name
@@ -67,12 +65,14 @@ class DRS:
         input_files = [exposure.e2ds(fiber).name for exposure in exposures for fiber in ('A', 'B')]
         return self.runner.run(pol_spirou, exposures[0].night, input_files)
 
-    # TODO: need to update this to work with new creation model
-    # def obj_mk_tellu(self, exposure):
-    #     return self.runner.run(obj_mk_tellu, exposure.night, [exposure.e2ds('AB', flat_fielded=True).name])
-
     def obj_fit_tellu(self, exposure):
         return self.runner.run(obj_fit_tellu, exposure.night, [exposure.e2ds('AB', flat_fielded=True).name])
+
+    def obj_mk_template(self, exposure):
+        return self.runner.run(obj_mk_obj_template, exposure.night, [exposure.e2ds('AB', flat_fielded=True).name])
+
+    def obj_mk_tellu(self):
+        return self.runner.run(obj_mk_tellu_db)
 
     def __run_sequence(self, module, exposures):
         return self.runner.run(module, exposures[0].night, [exposure.preprocessed.name for exposure in exposures])

@@ -32,19 +32,20 @@ class BaseDrsTrigger:
         self.processor = Processor(self.steps, ccf_params, trace, self.custom_handler)
 
     def reduce(self, night, files_in_order):
-        current_sequence = []
         self.processor.reset_state()
         for file in files_in_order:
             if not self.preprocess(night, file):
                 continue
             try:
                 self.process_file(night, file)
-                completed_sequences = self.sequence_checker(night, current_sequence, file)
-                for completed_sequence in completed_sequences:
-                    if completed_sequence:
-                        self.process_sequence(night, completed_sequence)
             except:
                 log.error('Critical failure processing %s, skipping', file, exc_info=True)
+        sequences = self.find_sequences(night, files_in_order)
+        for sequence in sequences:
+            try:
+                self.process_sequence(night, sequence)
+            except:
+                log.error('Critical failure processing %s, skipping', sequence, exc_info=True)
 
     def preprocess(self, night, file):
         exposure = Exposure(night, file)
@@ -59,6 +60,7 @@ class BaseDrsTrigger:
         result = self.processor.process_exposure(exposure_config, exposure)
         if self.custom_handler:
             self.custom_handler.exposure_post_process(exposure, result)
+        return result
 
     def process_sequence(self, night, files):
         exposures = []
@@ -80,22 +82,65 @@ class BaseDrsTrigger:
             result = self.processor.process_sequence(sequence_config, exposures)
             if self.custom_handler:
                 self.custom_handler.sequence_post_process(exposures, result)
+            return result
         else:
             log.error('No files found in sequence, skipping')
 
-    # Appends file to current_sequence, and if sequence is now complete, returns it and clears current_sequence.
     @staticmethod
-    def sequence_checker(night, current_sequence, file):
-        exposure = Exposure(night, file)
+    def find_sequences(night, files, **kwargs):
         finished_sequences = []
-        header = HeaderChecker(exposure.raw)
-        exp_index, exp_total = header.get_exposure_index_and_total()
-        if len(current_sequence) > 0 and exp_index == 1:
-            log.warning('Exposure number reset mid-sequence, ending previous sequence early: %s', current_sequence)
-            finished_sequences.append(current_sequence.copy())
-            current_sequence.clear()
-        current_sequence.append(exposure.raw.name)
-        if exp_index == exp_total:
-            finished_sequences.append(current_sequence.copy())
-            current_sequence.clear()
+        # TODO: should use OCTOKEN and OCEXPNUM if available
+        '''
+        - OCTOKEN should stay the same across exposures
+        - CMPLTEXP/NEXP can determine position in sequence
+        - OCEXPNUM will be the same for a repeated exposure, but different if the sequence is repeated
+            (e.g. increases when set up through the queue vs stays the same when RO does the repeat)
+        - In most cases probably want to take highest SNR exposure for a given exposure for a polar sequence
+            but have to consider the case with gaps between observations
+        '''
+        fallback_files = files
+        if fallback_files:
+            exposure_order = {file: i for i, file in enumerate(files)}
+            finished_sequences.extend(BaseDrsTrigger.find_sequences_fallback(night, fallback_files, **kwargs))
+            finished_sequences.sort(key=lambda sequence: exposure_order[sequence[0]])
         return finished_sequences
+
+    @staticmethod
+    def find_sequences_fallback(night, files, **kwargs):
+        ignore_incomplete = kwargs.get('ignore_incomplete')
+        ignore_incomplete_last = ignore_incomplete or kwargs.get('ignore_incomplete_last')
+        finished_sequences = []
+        current_sequence = []
+        last_index = 0
+        for file in files:
+            if night is not None:
+                exposure = Exposure(night, file)
+                file_path = exposure.raw
+            else:
+                file_path = file
+            header = HeaderChecker(file_path)
+            exp_index, exp_total = header.get_exposure_index_and_total()
+            if exp_index < last_index + 1:
+                if exp_index == 1:
+                    log.warning('Exposure number reset mid-sequence, ending previous sequence early: %s',
+                                current_sequence)
+                    if not ignore_incomplete:
+                        finished_sequences.append(current_sequence.copy())
+                    current_sequence.clear()
+                else:
+                    log.error('Exposures appear to be out of order: %s', current_sequence)
+            elif exp_index > last_index + 1:
+                log.error('Exposure appears to be missing from sequence: %s', current_sequence)
+            last_index = exp_index
+            current_sequence.append(file)
+            if exp_index == exp_total:
+                finished_sequences.append(current_sequence.copy())
+                current_sequence.clear()
+                last_index = 0
+        if not ignore_incomplete_last and current_sequence:
+            finished_sequences.append(current_sequence.copy())
+        return finished_sequences
+
+    @staticmethod
+    def Exposure(night, file):
+        return Exposure(night, file)

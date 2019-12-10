@@ -33,7 +33,6 @@ class SingleFileSelector:
         self.steps = steps
 
     def is_desired_file(self, filters):
-        FileSelectionFilters(filters)
         return self.is_desired_etype(self.checker, self.steps) and filters.matches_all_filters(self.checker)
 
     @classmethod
@@ -67,16 +66,17 @@ class SingleFileSelector:
         object_config = ExposureConfig.from_header_checker(checker).object
         return (ObjectStep.EXTRACT in steps.objects or
                 ObjectStep.POL in steps.objects and object_config.instrument_mode.is_polarimetry() or
-                ObjectStep.MKTELLU in steps.objects and object_config.target == TargetType.TELLURIC_STANDARD or
                 ObjectStep.FITTELLU in steps.objects and object_config.target == TargetType.STAR or
+                ObjectStep.MKTEMPLATE in steps.objects and object_config.target == TargetType.STAR or
                 ObjectStep.CCF in steps.objects and object_config.target == TargetType.STAR or
                 ObjectStep.PRODUCTS in steps.objects)
 
 
 class FileSelectionFilters:
-    def __init__(self, runids=None, targets=None):
+    def __init__(self, runids=None, targets=None, unique_targets=False):
         self.runids = runids
         self.targets = targets
+        self.unique_targets = set() if unique_targets else None
 
     def matches_all_filters(self, checker):
         return self.is_desired_runid(checker) and self.is_desired_target(checker)
@@ -99,6 +99,15 @@ class FileSelectionFilters:
         except RuntimeError:
             log.warning('File %s missing OBJECT keyword, skipping.', checker.file)
             return False
+
+    def is_unique_target(self, checker):
+        if self.unique_targets is None:
+            return True
+        target = checker.get_object_name()
+        if target not in self.unique_targets:
+            self.unique_targets.add(target)
+            return True
+        return False
 
     @classmethod
     def telluric_standards(cls):

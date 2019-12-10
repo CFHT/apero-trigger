@@ -10,33 +10,25 @@ class WaitingForCalibration(Exception):
         super().__init__('Missing pre-requisite calibration step: ' + step.name)
 
 
-class CalibrationProcessor():
-    def __init__(self, calibration_steps, drs):
-        super().__init__()
-        self.steps = calibration_steps
-        self.drs = drs
-        self.reset_state()
-
-    def get_state(self):
-        return {
-            'completed_calibrations': self.completed_calibrations,
-            'calibration_sequences': self.calibration_sequences,
-            'remaining_queue': self.remaining_queue
-        }
-
-    def set_state(self, **kwargs):
-        self.completed_calibrations = kwargs.get('completed_calibrations')
-        self.calibration_sequences = kwargs.get('calibration_sequences')
-        self.remaining_queue = kwargs.get('remaining_queue')
-
-    def reset_state(self):
+class CalibrationState():
+    def __init__(self):
         self.completed_calibrations = set()
         self.calibration_sequences = defaultdict(list)
         self.remaining_queue = defaultdict(deque)
 
+
+class CalibrationProcessor():
+    def __init__(self, calibration_steps, drs):
+        self.steps = calibration_steps
+        self.drs = drs
+        self.state = CalibrationState()
+
+    def reset_state(self):
+        self.state = CalibrationState()
+
     def add_sequence_to_queue(self, exposures, calibration_type):
-        self.calibration_sequences[calibration_type].append(exposures)
-        self.remaining_queue[calibration_type].append(exposures)
+        self.state.calibration_sequences[calibration_type].append(exposures)
+        self.state.remaining_queue[calibration_type].append(exposures)
 
     def attempt_processing_queue(self):
         try:
@@ -47,8 +39,8 @@ class CalibrationProcessor():
         else:
             calibrations_complete = True
             self.reset_state()
-            self.completed_calibrations.add(CalibrationStep.DARK)
-            self.completed_calibrations.add(CalibrationStep.BADPIX)
+            self.state.completed_calibrations.add(CalibrationStep.DARK)
+            self.state.completed_calibrations.add(CalibrationStep.BADPIX)
         return {
             'calibrations_complete': calibrations_complete,
             'processed_sequences': self.processed_sequences,
@@ -56,7 +48,7 @@ class CalibrationProcessor():
 
     def process_queue(self):
         def badpix_logic():
-            if CalibrationStep.BADPIX not in self.completed_calibrations:
+            if CalibrationStep.BADPIX not in self.state.completed_calibrations:
                 last_dark = self.get_last_exposure_of(CalibrationType.DARK_DARK)
                 last_flat = self.get_last_exposure_of(CalibrationType.FLAT_FLAT)
                 if last_dark and last_flat:
@@ -64,6 +56,7 @@ class CalibrationProcessor():
                     return True
 
         def shape_logic():
+            self.process_remaining(CalibrationType.FP_FP, lambda seq: None)
             last_fp_sequence = self.get_last_sequence_of(CalibrationType.FP_FP)
             if last_fp_sequence:
                 process_shape = lambda hc_sequence: self.drs.cal_SHAPE(hc_sequence[-1], last_fp_sequence)
@@ -83,11 +76,10 @@ class CalibrationProcessor():
         self.process_step_generalized(CalibrationStep.BADPIX, badpix_logic)
         self.process_step_simple(CalibrationStep.LOC, CalibrationType.DARK_FLAT, self.drs.cal_loc_RAW)
         self.process_step_simple(CalibrationStep.LOC, CalibrationType.FLAT_DARK, self.drs.cal_loc_RAW)
-        self.process_step_simple(CalibrationStep.SLIT, CalibrationType.FP_FP, self.drs.cal_SLIT)
         self.process_step_generalized(CalibrationStep.SHAPE, shape_logic)
         self.process_step_simple(CalibrationStep.FF, CalibrationType.FLAT_FLAT, self.drs.cal_FF_RAW)
         if CalibrationStep.WAVE in self.steps:
-            wave_logic() # Able to assume we'll only hit this once since calibrations are complete after this step
+            wave_logic()  # Able to assume we'll only hit this once since calibrations are complete after this step
 
     def process_step_simple(self, step, calibration_type, recipe):
         return self.process_step_generalized(step, lambda: self.process_remaining(calibration_type, recipe))
@@ -96,13 +88,13 @@ class CalibrationProcessor():
         if step in self.steps:
             result = function()
             if result:
-                self.completed_calibrations.add(step)
+                self.state.completed_calibrations.add(step)
                 return result
-            if step not in self.completed_calibrations:
+            if step not in self.state.completed_calibrations:
                 raise WaitingForCalibration(step)
 
     def process_remaining(self, calibration_type, recipe):
-        queue = self.remaining_queue[calibration_type]
+        queue = self.state.remaining_queue[calibration_type]
         processed = []
         while queue:
             sequence = queue.popleft()
@@ -112,7 +104,7 @@ class CalibrationProcessor():
         return processed
 
     def get_last_sequence_of(self, calibration_type):
-        all_sequences = self.calibration_sequences[calibration_type]
+        all_sequences = self.state.calibration_sequences[calibration_type]
         if all_sequences:
             return all_sequences[-1]
 

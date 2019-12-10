@@ -21,7 +21,7 @@ def get_base_argument_parser(additional_step_options = None):
 
     steps_options = ['preprocess', 'ppcal', 'ppobj',
                      'calibrations', 'dark', 'badpix', 'loc', 'slit', 'shape', 'ff', 'wave',
-                     'objects', 'extract', 'pol', 'fittellu', 'ccf', 'products']
+                     'objects', 'extract', 'pol', 'fittellu', 'mktemplate' 'ccf', 'products', 'mktellu']
     if additional_step_options:
         steps_options.extend(additional_step_options)
     reduce_parser.add_argument('--steps', nargs='+', choices=steps_options)
@@ -46,6 +46,7 @@ def get_base_argument_parser(additional_step_options = None):
                                                   help='Reduce a sequence of files together')
     reduce_sequence_parse.add_argument('filenames', nargs='+')
     subparsers.add_parser('telludb', parents=[multi_night_parser], help='Process telluric standards across all nights')
+    subparsers.add_parser('retellu', parents=[multi_night_parser], help='Update existing telludb from all nights')
     return parser, subparsers
 
 
@@ -53,12 +54,10 @@ def reduce_execute(args, drs_class, steps_class, filters_class, ccf_params_class
     ccf_params = ccf_params_class(args.ccfmask, args.ccfv0, args.ccfrange, args.ccfstep)
     if args.steps:
         steps = steps_class.from_keys(args.steps)
-    elif args.command == 'telludb':
-        steps = steps_class.from_keys(['extract'])
     else:
         steps = steps_class.all()
     trigger = drs_class(steps, ccf_params=ccf_params, trace=args.trace)
-    filters = filters_class(runids= args.runid, targets=args.target)
+    filters = filters_class(runids=args.runid, targets=args.target)
     if args.command == 'all':
         trigger.reduce_all_nights(filters=filters, num_processes=args.parallel)
     elif args.command == 'qrunid':
@@ -76,8 +75,19 @@ def reduce_execute(args, drs_class, steps_class, filters_class, ccf_params_class
     elif args.command == 'sequence':
         trigger.process_sequence(args.night, args.filenames)
     elif args.command == 'telludb':
-        filters = filters_class.telluric_standards()
-        trigger.reduce_all_nights(filters=filters, num_processes=args.parallel)
+        if args.steps and len(set(args.steps) - {'mktellu'}) > 0:
+            filters = filters_class.telluric_standards()
+            trigger.reduce_all_nights(filters=filters, num_processes=args.parallel)
+        if not args.steps or 'mktellu' in args.steps:
+            trigger.mk_tellu()
+    elif args.command == 'retellu':
+        if not args.steps or 'fittellu' in args.steps:
+            trigger = drs_class(steps_class.from_keys(['fittellu']), ccf_params=ccf_params, trace=args.trace)
+            trigger.reduce_all_nights(filters=filters, num_processes=args.parallel)
+        if not args.steps or 'mktemplate' in args.steps:
+            filters = filters_class(unique_targets=True)
+            trigger = drs_class(steps_class.from_keys(['mktemplate']), ccf_params=ccf_params, trace=args.trace)
+            trigger.reduce_all_nights(filters=filters, num_processes=args.parallel)
 
 
 if __name__ == '__main__':

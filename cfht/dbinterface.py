@@ -27,7 +27,7 @@ class QsoDatabase:
         }
         url = 'https://op-api.cfht.hawaii.edu/op-cli/op-spirou-update-pipeline'
         try:
-            self.json_request(url, data)
+            self.json_request(url, data, retries=2)
         except:
             log.error('Error sending values %s to database', header_dict, exc_info=True)
 
@@ -53,18 +53,24 @@ class QsoDatabase:
             return None
         auth_headers = {'Authorization': 'Bearer ' + self.bearer_token}
         url = 'https://api.cfht.hawaii.edu/op/exposures'
-        response_data = self.json_request(url, request_data, auth_headers)
+        response_data = self.json_request(url, request_data, headers=auth_headers, retries=2)
         return [exposure['exposure_status'] for exposure in response_data['exposure']]
 
     @staticmethod
-    def json_request(url, data, headers=None):
+    def json_request(url, data, headers=None, retries=0):
         http_headers = {'Content-Type': 'application/json'}
         if headers:
             http_headers.update(headers)
         json_data = json.dumps(data)
         request = Request(url, json_data.encode('utf-8'), http_headers)
-        response = urlopen(request)
-        return json.loads(response.read().decode('utf-8'))
+        for attempt in range(retries + 1):
+            try:
+                response = urlopen(request)
+            except URLError:
+                if attempt == retries:
+                    raise
+            else:
+                return json.loads(response.read().decode('utf-8'))
 
 
 class DatabaseHeaderConverter:

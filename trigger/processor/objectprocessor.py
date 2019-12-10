@@ -23,11 +23,6 @@ class ObjectProcessor():
                 'is_ccf_calculated': True,
                 'is_telluric_corrected': is_telluric_corrected,
             }
-        elif config.object.target == TargetType.TELLURIC_STANDARD:
-            if ObjectStep.MKTELLU in self.steps:
-                pass
-                # TODO: need to update this to work with new creation model
-                # self.drs.obj_mk_tellu(exposure)
         if ObjectStep.PRODUCTS in self.steps:
             self.packager.create_1d_spectra_product(exposure)
         return {'extracted_path': extracted_path}
@@ -58,6 +53,8 @@ class ObjectProcessor():
         else:
             expected_telluric_path = exposure.e2ds('AB', telluric_corrected=True, flat_fielded=True)
             telluric_corrected = expected_telluric_path.exists()
+        if ObjectStep.MKTEMPLATE in self.steps:
+            self.drs.obj_mk_template(exposure)
         if ObjectStep.PRODUCTS in self.steps:
             self.packager.create_tell_product(exposure)
         return telluric_corrected

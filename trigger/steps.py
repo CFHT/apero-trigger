@@ -1,6 +1,8 @@
 from collections import namedtuple
 from enum import Enum, auto
 
+DEFAULT_OFF = "DEFAULT_OFF"
+
 
 class PreprocessStep(Enum):
     PPCAL = auto()
@@ -11,7 +13,6 @@ class CalibrationStep(Enum):
     DARK = auto()
     BADPIX = auto()
     LOC = auto()
-    SLIT = auto()
     SHAPE = auto()
     FF = auto()
     WAVE = auto()
@@ -24,6 +25,7 @@ class ObjectStep(Enum):
     CCF = auto()
     PRODUCTS = auto()
     MKTELLU = auto()
+    MKTEMPLATE = DEFAULT_OFF
 
 
 class StepsFactory:
@@ -31,7 +33,7 @@ class StepsFactory:
         self.enum = enum
 
     def all(self):
-        return set(self.enum)
+        return set((const for const in self.enum if const.value != DEFAULT_OFF))
 
     def from_keys(self, keys, all_key=None):
         if all_key and all_key in keys:

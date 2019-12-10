@@ -7,7 +7,7 @@ from .distribution import ProductDistributorFactory, distribute_raw_file
 from .fileselector import CfhtFileSelector
 from .steps import CfhtDrsSteps
 
-TRIGGER_VERSION = '023'
+TRIGGER_VERSION = '025'
 
 
 class CfhtHandler(AbstractCustomHandler):
@@ -101,6 +101,9 @@ class CfhtDrsTrigger(DrsTrigger):
 class CfhtRealtimeTrigger(CfhtDrsTrigger):
     def __init__(self, ccf_params):
         super().__init__(CfhtDrsSteps.all(), ccf_params, realtime=True)
+
+    def find_sequences(self, night, files):
+        return super().find_sequences(night, files, ignore_incomplete_last=True)
 
 
 class CfhtRealtimeTester(CfhtDrsTrigger):

@@ -3,10 +3,9 @@
 import datetime
 
 from drsloader import DrsLoader
-from listener import run_listener
 from logger import configure_logger
 from offline_trigger import get_base_argument_parser, reduce_execute
-from realtime import realtime
+from realtime import run_listener, start_realtime
 
 if __name__ == '__main__':
     parser, subparsers = get_base_argument_parser(additional_step_options=['distribute', 'database', 'distraw'])
@@ -15,16 +14,15 @@ if __name__ == '__main__':
     version_flags = version_parse.add_mutually_exclusive_group(required=False)
     version_flags.add_argument('--drs', action='store_true')
     version_flags.add_argument('--trigger', action='store_true')
-    realtime_parse = subparsers.add_parser('realtime', help='Reduce next file from observing session and update DB')
-    realtime_parse.add_argument('filepath')
-    listener_parse = subparsers.add_parser('listener', help='Run local http listener for automated realtime calls')
-    listener_parse.add_argument('--port', type=int, default=9998)
-    listener_parse.add_argument('--processes', type=int, default=6)
+    realtime_parse = subparsers.add_parser('realtime', aliases=['listener'],
+                                           help='Reduce files from observing session and update DB')
+    realtime_parse.add_argument('--port', type=int, default=9998)
+    realtime_parse.add_argument('--processes', type=int, default=6)
 
     args = parser.parse_args()
 
     log_files = args.logfile if args.logfile else []
-    if args.command == 'listener':
+    if args.command == 'realtime' or args.command == 'listener':
         timestamp = datetime.datetime.now().strftime("error-report-%Y%m%d-%H%M%S")
         log_files.append((timestamp, 'ERROR'))
     configure_logger(console_level=args.loglevel, log_files=log_files)
@@ -32,10 +30,9 @@ if __name__ == '__main__':
     if args.config is not None:
         DrsLoader.set_drs_config_subdir(args.config)
 
-    if args.command == 'realtime':
-        realtime(args.filepath)
-    elif args.command == 'listener':
-        run_listener(args.port, args.processes)
+    if args.command == 'realtime' or args.command == 'listener':
+        queue = run_listener(args.port)
+        start_realtime(args.processes, queue)
     else:
         loader = DrsLoader()
         cfht = loader.get_loaded_trigger_module()

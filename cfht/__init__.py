@@ -1,4 +1,4 @@
-from trigger import CcfParams, Exposure, FileSelectionFilters, log
+from trigger import CcfParams, FileSelectionFilters, log
 from . import cfhttrigger, steps
 from .distribution import distribute_raw_file
 
@@ -7,6 +7,5 @@ CfhtRealtimeTrigger = cfhttrigger.CfhtRealtimeTrigger
 CfhtRealtimeTester = cfhttrigger.CfhtRealtimeTester
 CfhtDrsSteps = steps.CfhtDrsSteps
 CcfParams = CcfParams
-Exposure = Exposure
 FileSelectionFilters = FileSelectionFilters
 log = log
