@@ -32,11 +32,15 @@ class CfhtHandler(AbstractCustomHandler):
         if self.distributing_raw:
             distribute_raw_file(exposure.raw)
 
+    def exposure_preprocess_done(self, exposure):
+        if self.updating_database:
+            self.__update_db_with_headers(exposure.odometer, exposure.preprocessed, preprocessed_only=True)
+
     def exposure_post_process(self, exposure, result):
         config = ExposureConfig.from_file(exposure.preprocessed)
         if config.object:
             if self.updating_database:
-                self.__update_db_with_headers(exposure, result.get('extracted_path'), result.get('ccf_path'))
+                self.__update_db_with_headers(exposure.odometer, result.get('extracted_path'), result.get('ccf_path'))
             if self.database:
                 exposure_status = self.database.get_exposure(exposure.odometer)
             else:
@@ -69,20 +73,23 @@ class CfhtHandler(AbstractCustomHandler):
                 calibrations_complete = result.get('calibrations_complete')
                 # TODO: fire off calibrations done processing notices
 
-    def __update_db_with_headers(self, exposure, exposure_path=None, ccf_path=None):
+    def __update_db_with_headers(self, odometer, exposure_path=None, ccf_path=None, preprocessed_only=False):
         if not self.updating_database:
             return
-        db_headers = {'obsid': str(exposure.odometer)}
+        db_headers = {'obsid': str(odometer)}
         try:
             if exposure_path:
                 with fits.open(exposure_path) as hdu_list:
-                    db_headers.update(DatabaseHeaderConverter.extracted_header_to_db(hdu_list[0].header))
+                    if preprocessed_only:
+                        db_headers.update(DatabaseHeaderConverter.preprocessed_header_to_db(hdu_list[0].header))
+                    else:
+                        db_headers.update(DatabaseHeaderConverter.extracted_header_to_db(hdu_list[0].header))
             if ccf_path:
                 with fits.open(ccf_path) as hdu_list:
                     db_headers.update(DatabaseHeaderConverter.ccf_header_to_db(hdu_list[0].header))
         except FileNotFoundError as err:
             log.warning('File not found during database update: %s', err.filename)
-        self.database.send_pipeline_headers(db_headers)
+        self.database.send_pipeline_headers(db_headers, in_progress=preprocessed_only)
 
 
 class CfhtDrsTrigger(DrsTrigger):

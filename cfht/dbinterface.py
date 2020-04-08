@@ -17,7 +17,7 @@ class QsoDatabase:
             log.error('Failed to load API bearer token, will not be able to access database', exc_info=False)
             self.bearer_token = None
 
-    def send_pipeline_headers(self, header_dict):
+    def send_pipeline_headers(self, header_dict, in_progress=False):
         if not self.bearer_token:
             log.warning('No bearer token loaded, cannot send values to the database')
             return
@@ -26,6 +26,8 @@ class QsoDatabase:
             **header_dict
         }
         url = 'https://op-api.cfht.hawaii.edu/op-cli/op-spirou-update-pipeline'
+        if in_progress:
+            url = url + "-in-progress"
         try:
             self.json_request(url, data, retries=2)
         except:
@@ -74,6 +76,12 @@ class QsoDatabase:
 
 
 class DatabaseHeaderConverter:
+    @staticmethod
+    def preprocessed_header_to_db(header):
+        return {
+            'dprtype': header['DPRTYPE']
+        }
+
     @staticmethod
     def extracted_header_to_db(header):
         return {
