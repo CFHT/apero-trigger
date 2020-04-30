@@ -17,6 +17,10 @@ class AbstractCustomHandler(ABC):
         pass
 
     @abstractmethod
+    def exposure_preprocess_done(self, exposure):
+        pass
+
+    @abstractmethod
     def exposure_post_process(self, exposure, result):
         pass
 
@@ -52,7 +56,10 @@ class BaseDrsTrigger:
         exposure_config = ExposureConfig.from_file(exposure.raw)
         if self.custom_handler:
             self.custom_handler.exposure_pre_process(exposure)
-        return self.processor.preprocess_exposure(exposure_config, exposure)
+        result = self.processor.preprocess_exposure(exposure_config, exposure)
+        if self.custom_handler:
+            self.custom_handler.exposure_preprocess_done(exposure)
+        return result
 
     def process_file(self, night, file):
         exposure = Exposure(night, file)
