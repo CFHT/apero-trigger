@@ -48,12 +48,12 @@ class DRS:
         return self.runner.run(cal_SHAPE_spirou, night, hc_file, fp_files)
 
     def cal_HC_E2DS(self, exposure, fiber):
-        file = exposure.e2ds(fiber).name
+        file = exposure.e2ds(fiber, flat_fielded=True).name
         return self.runner.run(cal_HC_E2DS_EA_spirou, exposure.night, file)
 
     def cal_WAVE_E2DS(self, fp_exposure, hc_exposure, fiber):
-        hc_file = hc_exposure.e2ds(fiber).name
-        fp_file = fp_exposure.e2ds(fiber).name
+        hc_file = hc_exposure.e2ds(fiber, flat_fielded=True).name
+        fp_file = fp_exposure.e2ds(fiber, flat_fielded=True).name
         return self.runner.run(cal_WAVE_E2DS_EA_spirou, hc_exposure.night, fp_file, [hc_file])
 
     def cal_CCF_E2DS(self, exposure, params, telluric_corrected, fp):
