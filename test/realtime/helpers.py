@@ -1,13 +1,18 @@
 import time
 from enum import Enum
-from multiprocessing import Queue, Process, Event
+from multiprocessing import Event, Process, Queue
 from pathlib import Path
 from unittest import mock
 
+from realtime.manager import IExposureApi
+from trigger.baseinterface.drstrigger import IDrsTrigger
+from trigger.baseinterface.exposure import IExposure
 
-class MockApi:
-    def __init__(self):
+
+class MockApi(IExposureApi):
+    def __init__(self, trigger):
         self.new_exposures = Queue()
+        self.trigger = trigger
 
     def add_new_exposures(self, exposures):
         for exposure in exposures:
@@ -16,13 +21,17 @@ class MockApi:
     def get_new_exposures(self, cursor):
         found = []
         while not self.new_exposures.empty():
-            found.append(self.new_exposures.get())
+            exposure_path = self.new_exposures.get()
+            exposure = self.trigger.Exposure('', Path(exposure_path).name)
+            found.append(exposure)
         return found
 
 
 class Log:
-    def __init__(self):
-        self.log_queue = Queue()
+    def __init__(self, log_queue=None):
+        self.log_queue = log_queue
+        if log_queue is None:
+            self.log_queue = Queue()
         self.data = []
 
     def put(self, item):
@@ -40,23 +49,27 @@ def last_index(iterable, value):
     return len(iterable) - 1 - iterable[::-1].index(value)
 
 
-class MockExposurePathFactory:
-    def __init__(self, root_dir):
-        self.root_dir = Path(root_dir)
-
-    def exposure(self, night, filename):
-        return MockExposurePath(self.root_dir, night, Path(filename).name)
-
-
-class MockExposurePath:
+class MockExposure(IExposure):
     def __init__(self, root_dir, night, raw_file):
         self.root_dir = root_dir
-        self.night = night
-        self.file = raw_file
+        self.__night = night
+        self.__file = raw_file
 
     @property
-    def raw(self):
-        return self.root_dir.joinpath('raw', self.night, self.file)
+    def night(self) -> str:
+        return self.__night
+
+    @property
+    def raw(self) -> Path:
+        return self.root_dir.joinpath('raw', self.__night, self.__file)
+
+    @property
+    def preprocessed(self) -> Path:
+        pass
+
+
+def files_as_exposures(root, night, files):
+    return [MockExposure(root, night, Path(f).name) for f in files]
 
 
 class TriggerActionT(Enum):
@@ -68,26 +81,58 @@ class TriggerActionT(Enum):
         return self.value
 
 
-class MockTrigger:
-    def __init__(self, root_dir):
-        self.exposure_path_factory = MockExposurePathFactory(root_dir)
-        self.processor = mock.MagicMock()
-        self.log = Log()
+class MockCache(mock.MagicMock):
+    def __reduce__(self):
+        return mock.MagicMock, ()
 
-    def preprocess(self, night, file):
-        self.log.put((TriggerActionT.PREPROCESS, night, file))
+
+class MockProcessor(mock.MagicMock):
+    def __getstate__(self):
+        return {
+        }
+
+    def __setstate__(self, state):
+        pass
+
+
+class MockTrigger(IDrsTrigger):
+    def __init__(self, root_dir, log_queue=None):
+        self.root_dir = root_dir
+        self.processor = MockProcessor()
+        self.log = Log(log_queue)
+
+    def __reduce__(self):
+        return self.__class__, (self.root_dir, self.log.log_queue)
+
+    def preprocess(self, exposure):
+        self.log.put((TriggerActionT.PREPROCESS, exposure))
         return True
 
-    def process_file(self, night, file):
-        self.log.put((TriggerActionT.PROCESS_FILE, night, file))
+    def process_file(self, exposure):
+        self.log.put((TriggerActionT.PROCESS_FILE, exposure))
         return True
 
-    def process_sequence(self, night, files):
-        self.log.put((TriggerActionT.PROCESS_SEQUENCE, night, files))
+    def process_sequence(self, exposures):
+        self.log.put((TriggerActionT.PROCESS_SEQUENCE, exposures))
         return {}
 
     def Exposure(self, night, filename):
-        return self.exposure_path_factory.exposure(night, filename)
+        return MockExposure(Path(self.root_dir), night, filename)
+
+    def reduce(self, exposures_in_order):
+        pass
+
+    @staticmethod
+    def find_sequences(exposures, **kwargs):
+        pass
+
+    @property
+    def calibration_state(self):
+        return None
+
+    @calibration_state.setter
+    def calibration_state(self, state):
+        pass
 
 
 class ProcessRunner:
@@ -95,8 +140,8 @@ class ProcessRunner:
         self.target = target
         self.args = args
 
-    def start(self):
-        return RunningProcess(self.target, self.args)
+    def start(self, block=True):
+        return RunningProcess(self.target, self.args, block)
 
     def run_for(self, interval):
         rp = self.start()
@@ -105,10 +150,14 @@ class ProcessRunner:
 
 
 class RunningProcess:
-    def __init__(self, target, args):
-        self.exit_event = Event()
-        p = Process(target=target, args=(*args, self.exit_event))
-        p.start()
+    def __init__(self, target, args, block=True):
+        started_running = Event()
+        self.finished_running = Event()
+        self.stop_running = Event()
+        self.process = Process(target=target, args=(*args, started_running, self.finished_running, self.stop_running))
+        self.process.start()
+        if block:
+            started_running.wait()
 
     def __enter__(self):
         return self
@@ -116,5 +165,7 @@ class RunningProcess:
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.stop()
 
-    def stop(self):
-        self.exit_event.set()
+    def stop(self, block=True):
+        self.stop_running.set()
+        if block:
+            self.finished_running.wait()

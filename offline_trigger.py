@@ -1,6 +1,8 @@
-#!/usr/bin/env python
+#!/data/spirou/offline/venv/bin/python3 -u
 
 import argparse
+
+import logger
 
 
 def get_base_argument_parser(additional_step_options = None):
@@ -12,16 +14,17 @@ def get_base_argument_parser(additional_step_options = None):
     subparsers.required = True
     reduce_parser = argparse.ArgumentParser(add_help=False)
     reduce_parser.add_argument('--trace', action='store_true', help='Only simulate DRS commands, requires pp files')
+    # TODO load default ccf parameters from DRS
     reduce_parser.add_argument('--ccfmask', type=str, default='masque_sept18_andres_trans50.mas')
     reduce_parser.add_argument('--ccfv0', type=float, default=0)
-    reduce_parser.add_argument('--ccfrange', type=float, default=200)
-    reduce_parser.add_argument('--ccfstep', type=float, default=1)
+    reduce_parser.add_argument('--ccfrange', type=float, default=300)
+    reduce_parser.add_argument('--ccfstep', type=float, default=0.5)
     reduce_parser.add_argument('--runid', nargs='+', help='Only process files belonging to the runid(s)')
     reduce_parser.add_argument('--target', nargs='+', help='Only process files that are observations of the target(s)')
 
     steps_options = ['preprocess', 'ppcal', 'ppobj',
-                     'calibrations', 'dark', 'badpix', 'loc', 'slit', 'shape', 'ff', 'wave',
-                     'objects', 'extract', 'pol', 'fittellu', 'mktemplate' 'ccf', 'products', 'mktellu']
+                     'calibrations', 'badpix', 'loc', 'shape', 'flat', 'thermal', 'wave',
+                     'objects', 'extract', 'leak', 'fittellu', 'ccf', 'pol', 'products']
     if additional_step_options:
         steps_options.extend(additional_step_options)
     reduce_parser.add_argument('--steps', nargs='+', choices=steps_options)
@@ -45,8 +48,6 @@ def get_base_argument_parser(additional_step_options = None):
     reduce_sequence_parse = subparsers.add_parser('sequence', parents=[single_night_parser],
                                                   help='Reduce a sequence of files together')
     reduce_sequence_parse.add_argument('filenames', nargs='+')
-    subparsers.add_parser('telludb', parents=[multi_night_parser], help='Process telluric standards across all nights')
-    subparsers.add_parser('retellu', parents=[multi_night_parser], help='Update existing telludb from all nights')
     return parser, subparsers
 
 
@@ -74,24 +75,12 @@ def reduce_execute(args, drs_class, steps_class, filters_class, ccf_params_class
             trigger.process_file(args.night, args.filename)
     elif args.command == 'sequence':
         trigger.process_sequence(args.night, args.filenames)
-    elif args.command == 'telludb':
-        if args.steps and len(set(args.steps) - {'mktellu'}) > 0:
-            filters = filters_class.telluric_standards()
-            trigger.reduce_all_nights(filters=filters, num_processes=args.parallel)
-        if not args.steps or 'mktellu' in args.steps:
-            trigger.mk_tellu()
-    elif args.command == 'retellu':
-        if not args.steps or 'fittellu' in args.steps:
-            trigger = drs_class(steps_class.from_keys(['fittellu']), ccf_params=ccf_params, trace=args.trace)
-            trigger.reduce_all_nights(filters=filters, num_processes=args.parallel)
-        if not args.steps or 'mktemplate' in args.steps:
-            filters = filters_class(unique_targets=True)
-            trigger = drs_class(steps_class.from_keys(['mktemplate']), ccf_params=ccf_params, trace=args.trace)
-            trigger.reduce_all_nights(filters=filters, num_processes=args.parallel)
 
 
 if __name__ == '__main__':
-    from trigger import DrsTrigger, DrsSteps, FileSelectionFilters, CcfParams, logger
+    from trigger.common import DrsSteps, CcfParams
+    from trigger.drstrigger import DrsTrigger
+    from trigger.fileselector import FileSelectionFilters
 
     parser, subparsers = get_base_argument_parser()
     subparsers.add_parser('version', help='DRS version information')

@@ -3,7 +3,7 @@ import pickle
 from logger import log
 
 
-class DataCache():
+class DataCache:
     def __init__(self, file):
         self.cache_file = file
 

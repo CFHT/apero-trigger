@@ -1,18 +1,19 @@
-from collections import namedtuple
+from enum import auto
+from typing import Iterable
 
-from trigger import DrsSteps
+from trigger.baseinterface.steps import Step, StepsFactory
+from trigger.common import DrsSteps
 
 
-class CfhtDrsSteps(namedtuple('CfhtDrsSteps', DrsSteps._fields + ('distribute', 'database', 'distraw'))):
+class CfhtStep(Step):
+    DISTRIBUTE = auto()
+    DISTRAW = auto()
+    DATABASE = auto()
+
+
+class CfhtDrsSteps(DrsSteps):
+    cfht_steps_factory = StepsFactory(CfhtStep)
+
     @classmethod
-    def all(cls):
-        drs_steps = DrsSteps.all()
-        return cls(*drs_steps, True, True, True)
-
-    @classmethod
-    def from_keys(cls, keys):
-        drs_steps = DrsSteps.from_keys(keys)
-        distribute = 'distribute' in keys
-        database = 'database' in keys
-        distraw = 'distraw' in keys
-        return cls(*drs_steps, distribute, database, distraw)
+    def _steps_factories(cls) -> Iterable[StepsFactory]:
+        return (*super()._steps_factories(), cls.cfht_steps_factory)

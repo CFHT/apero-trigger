@@ -1,4 +1,7 @@
+from __future__ import annotations
+
 from multiprocessing import Queue
+from pathlib import Path
 
 import cherrypy
 from flask import Flask, request
@@ -6,7 +9,7 @@ from flask import Flask, request
 from logger import log
 
 
-def run_listener(port):
+def run_listener(port: int) -> Queue[Path]:
     app = Flask('realtime-server')
     file_queue = Queue()
 
@@ -18,9 +21,9 @@ def run_listener(port):
     def realtime_trigger():
         filename = request.args.get('filename')
         try:
-            file_queue.put(filename)
+            file_queue.put(Path(filename))
             return '{"success": true}', 200
-        except Exception as error:
+        except Exception:
             return '{"success": false}', 500
 
     app.base_url = 'http://localhost:' + str(port)

@@ -1,6 +1,7 @@
 import subprocess
 
-def director_message(message, level=None):
+
+def director_message(message: str, level: str = None):
     if level:
         message = level + ': ' + message
     command = '@say_ ' + message + '\n'

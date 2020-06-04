@@ -1,19 +1,18 @@
 import queue
 import time
 from enum import Enum
-from pathlib import Path
 
 import pytest
 
-from realtime.manager import Realtime
-from test.realtime.helpers import Log, last_index, ProcessRunner
+from realtime.manager import start_realtime
+from test.realtime.helpers import Log, ProcessRunner, last_index
 
 
-class MockExposure:
-    def __init__(self, full_name):
-        stem = Path(full_name).stem
+class MockExposureMetadata:
+    def __init__(self, exposure):
+        stem = exposure.raw.stem
         parts = stem.split('-')
-        self.name = full_name
+        self.exposure = exposure
         self.group = parts[0]
         self.index = int(parts[1]) - 1
         self.count = int(parts[2])
@@ -30,12 +29,19 @@ class ProcessorActionT(Enum):
 
 
 class MockProcessor:
-    def __init__(self, log):
+    def __init__(self, log, tick_interval):
         self.log = log
+        self.tick_interval = tick_interval
 
-    def process_from_queues(self, exposure_queue, sequence_queue, exposures_done, sequences_done):
-        while True:
+    def process_from_queues(self, exposure_queue, sequence_queue, exposures_done, sequences_done,
+                            started_processes, finished_processes, stop_signal):
+        with started_processes.get_lock():
+            started_processes.value += 1
+        while not stop_signal.is_set():
             self.process_next_from_queue(exposure_queue, sequence_queue, exposures_done, sequences_done)
+            time.sleep(self.tick_interval)
+        with finished_processes.get_lock():
+            finished_processes.value += 1
 
     def process_next_from_queue(self, exposure_queue, sequence_queue, exposures_done, sequences_done):
         try:
@@ -47,7 +53,7 @@ class MockProcessor:
                 pass
             else:
                 self.log.put((ProcessorActionT.STARTED, exposure))
-                time.sleep(MockExposure(exposure).time)
+                time.sleep(MockExposureMetadata(exposure).time)
                 self.log.put((ProcessorActionT.FINISHED, exposure))
                 exposures_done.put(exposure)
         else:
@@ -58,20 +64,20 @@ class MockProcessor:
 def mock_sequence_finder(exposures):
     sequences = []
     groups = {}
-    for raw_exposure in exposures:
-        exposure = MockExposure(raw_exposure)
-        assert exposure.index < exposure.count
-        if exposure.group in groups:
-            sequence = groups[exposure.group]
-            assert sequence[-1].count == exposure.count
-            assert all(existing_exposure.index != exposure.index for existing_exposure in sequence)
-            sequence.append(exposure)
+    for exposure in exposures:
+        exposure_metadata = MockExposureMetadata(exposure)
+        assert exposure_metadata.index < exposure_metadata.count
+        if exposure_metadata.group in groups:
+            sequence = groups[exposure_metadata.group]
+            assert sequence[-1].count == exposure_metadata.count
+            assert all(existing_exposure.index != exposure_metadata.index for existing_exposure in sequence)
+            sequence.append(exposure_metadata)
         else:
-            sequence = [exposure]
-            groups[exposure.group] = sequence
-        if len(sequence) == exposure.count:
+            sequence = [exposure_metadata]
+            groups[exposure_metadata.group] = sequence
+        if len(sequence) == exposure_metadata.count:
             sequence.sort(key=lambda exp: exp.index)
-            sequences.append(tuple(map(lambda exp: exp.name, sequence)))
+            sequences.append(tuple(map(lambda exp: exp.exposure, sequence)))
     return sequences
 
 
@@ -94,18 +100,19 @@ def test_data():
     ]
 
 
-def RealtimeProcess(realtime, processor):
-    return ProcessRunner(target=realtime.main, args=(4, processor.process_from_queues, 0.5, 0.05)).start()
-
-
 @pytest.fixture
-def realtime_fresh(remote_api, realtime_cache):
-    return Realtime(mock_sequence_finder, remote_api, realtime_cache)
+def check_data(test_data, mock_trigger):
+    return [mock_trigger.Exposure('', f) for f in test_data]
+
+
+def start_realtime_process(api, cache, processor):
+    return ProcessRunner(target=start_realtime, args=(mock_sequence_finder, api, cache, processor.process_from_queues,
+                                                      4, 0.5, 0.05)).start()
 
 
 @pytest.fixture
 def mock_processor():
-    return MockProcessor(Log())
+    return MockProcessor(Log(), 0.01)
 
 
 def consistency_check(log, exposures):
@@ -128,43 +135,44 @@ def consistency_check(log, exposures):
             assert finish_index < sequence_index
 
 
-def test_realtime_data_before(realtime_fresh, remote_api, mock_processor, test_data):
+def test_realtime_data_before(remote_api, realtime_cache, mock_processor, test_data, check_data, end_safe):
     remote_api.add_new_exposures(test_data)
-    p = RealtimeProcess(realtime_fresh, mock_processor)
+    p = start_realtime_process(remote_api, realtime_cache, mock_processor)
     time.sleep(3.0)
-    p.stop()
-    consistency_check(mock_processor.log, test_data)
+    p.stop(block=end_safe)
+    consistency_check(mock_processor.log, check_data)
 
 
-def test_realtime_data_after(realtime_fresh, remote_api, mock_processor, test_data):
-    p = RealtimeProcess(realtime_fresh, mock_processor)
+def test_realtime_data_after(remote_api, realtime_cache, mock_processor, test_data, check_data, end_safe):
+    p = start_realtime_process(remote_api, realtime_cache, mock_processor)
     time.sleep(0.2)
     remote_api.add_new_exposures(test_data)
     time.sleep(2.8)
-    p.stop()
-    consistency_check(mock_processor.log, test_data)
+    p.stop(block=end_safe)
+    consistency_check(mock_processor.log, check_data)
 
 
-def test_realtime_split_data(realtime_fresh, remote_api, mock_processor, test_data):
+def test_realtime_split_data(remote_api, realtime_cache, mock_processor, test_data, check_data, end_safe):
     remote_api.add_new_exposures(test_data[:12])
-    p = RealtimeProcess(realtime_fresh, mock_processor)
+    p = start_realtime_process(remote_api, realtime_cache, mock_processor)
     time.sleep(1.5)
     remote_api.add_new_exposures(test_data[12:])
     time.sleep(1.5)
-    p.stop()
-    consistency_check(mock_processor.log, test_data)
+    p.stop(block=end_safe)
+    consistency_check(mock_processor.log, check_data)
 
 
-@pytest.mark.parametrize('death_time', [0.5, 0.8, 1.0, 1.2, 2.0])
-def test_realtime_save_and_load(realtime_fresh, remote_api, mock_processor, test_data, death_time):
+@pytest.mark.parametrize('kill_time', [0.5, 0.8, 1.0, 1.2, 2.0])
+def test_realtime_save_and_load(remote_api, realtime_cache, mock_processor, test_data, check_data, end_safe, kill_time):
     remote_api.add_new_exposures(test_data)
-    p = RealtimeProcess(realtime_fresh, mock_processor)
-    time.sleep(death_time)
-    p.stop()
-    realtime_cache = realtime_fresh.local_db
+    p = start_realtime_process(remote_api, realtime_cache, mock_processor)
+    time.sleep(kill_time)
+    p.stop(block=end_safe)
+    if not end_safe:
+        mock_processor.log.flush()
     realtime_loaded = realtime_cache.load()
     realtime_loaded.inject(mock_sequence_finder, remote_api, realtime_cache)
-    p = RealtimeProcess(realtime_loaded, mock_processor)
-    time.sleep(3.0 - death_time)
-    p.stop()
-    consistency_check(mock_processor.log, test_data)
+    p = start_realtime_process(remote_api, realtime_cache, mock_processor)
+    time.sleep(3.0 - kill_time)
+    p.stop(block=end_safe)
+    consistency_check(mock_processor.log, check_data)

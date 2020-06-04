@@ -1,75 +1,111 @@
-from .common import log
-from .drswrapper import TELLURIC_STANDARDS
-from .exposureconfig import ExposureConfig, TargetType
-from .headerchecker import HeaderChecker
-from .steps import PreprocessStep, ObjectStep
+from __future__ import annotations
+
+from collections import defaultdict
+from enum import Enum, auto
+from pathlib import Path
+from typing import Collection, Dict, Iterable, Optional, Sequence, Tuple, Union
+
+from logger import log
+from .baseinterface.headerchecker import DateTime
+from .baseinterface.steps import Step
+from .common import CalibrationStep, Exposure, ExposureConfig, ObjectStep, PreprocessStep, TELLURIC_STANDARDS
+from .headerchecker import HeaderChecker, SpirouHeaderChecker
+from .processor import Processor
+
+
+class FileType(Enum):
+    CALIBRATION = auto()
+    OBJECT = auto()
+    ALL = auto()
 
 
 class FileSelector:
-    def __init__(self, file_selector_class=None):
-        self.SingleFileSelector = file_selector_class if file_selector_class else SingleFileSelector
+    def single_file_selector(self, exposure: Exposure, steps: Collection[Step]) -> SingleFileSelector:
+        return SingleFileSelector(exposure, steps)
 
-    def sort_and_filter_files(self, files, steps, filters):
-        checkers = [HeaderChecker(file) for file in files]
-        filtered = filter(lambda checker: self.SingleFileSelector(checker, steps).is_desired_file(filters), checkers)
-        sorted = FileSelector.sort_files_by_observation_date(filtered)
-        return sorted
+    def sort_and_filter_files_split(self, exposures: Iterable[Exposure], steps: Collection[Step],
+                                    filters: FileSelectionFilters) -> Tuple[Sequence[Exposure], Sequence[Exposure]]:
+        date_by_file_by_type = self.__filter_files(exposures, steps, filters, True)
+        return (sorted(date_by_file_by_type[FileType.CALIBRATION], key=date_by_file_by_type[FileType.CALIBRATION].get),
+                sorted(date_by_file_by_type[FileType.OBJECT], key=date_by_file_by_type[FileType.OBJECT].get))
 
-    @staticmethod
-    def sort_files_by_observation_date(checkers):
-        file_times = {}
-        for checker in checkers:
-            obs_date = checker.get_obs_date()
-            if not obs_date:
+    def sort_and_filter_files_combined(self, exposures: Iterable[Exposure], steps: Collection[Step],
+                                       filters: FileSelectionFilters) -> Sequence[Exposure]:
+        date_by_file_by_type = self.__filter_files(exposures, steps, filters, False)
+        return sorted(date_by_file_by_type[FileType.ALL], key=date_by_file_by_type[FileType.ALL].get)
+
+    def __filter_files(self, exposures: Iterable[Exposure], steps: Collection[Step], filters: FileSelectionFilters,
+                       split_by_type: bool) -> Dict[FileType, Dict[Exposure, DateTime]]:
+        date_by_file_by_type = defaultdict(dict)
+        for exposure in exposures:
+            selector = self.single_file_selector(exposure, steps)
+            desired_file_check = selector.is_desired_file(filters)
+            if not desired_file_check:
+                continue
+            desired_file_type, checker = desired_file_check
+            if not split_by_type:
+                desired_file_type = FileType.ALL
+            sort_key = checker.get_obs_date()
+            if not sort_key:
                 log.warning('File %s missing observation date info, skipping.', checker.file)
             else:
-                file_times[checker.file] = obs_date
-        return sorted(file_times, key=file_times.get)
+                date_by_file_by_type[desired_file_type][exposure] = sort_key
+        return date_by_file_by_type
 
 
 class SingleFileSelector:
-    def __init__(self, checker, steps):
-        self.checker = checker
+    def __init__(self, exposure: Exposure, steps: Collection[Step]):
+        self.exposure = exposure
         self.steps = steps
 
-    def is_desired_file(self, filters):
-        return self.is_desired_etype(self.checker, self.steps) and filters.matches_all_filters(self.checker)
+    def is_desired_file(self, filters: FileSelectionFilters) -> Union[FileType, None]:
+        result = self.a_step_uses_file(self.exposure, self.steps)
+        if result and filters.matches_all_filters(result[1]):
+            return result
 
     @classmethod
-    def is_desired_etype(cls, checker, steps):
-        return (cls.step_uses_all_calibrations(steps)and cls.has_calibration_extension(checker.file) or
-                cls.step_uses_all_objects(steps) and cls.has_object_extension(checker.file) or
-                steps.objects and cls.has_object_extension(checker.file) and cls.is_desired_object(checker, steps))
+    def a_step_uses_file(cls, exposure: Exposure, steps: Collection[Step]) -> Optional[Tuple[FileType, HeaderChecker]]:
+        file = exposure.raw
+        if cls.has_calibration_extension(exposure.raw):
+            if not any(cls.is_calibration_step(step) for step in steps):
+                return
+            file_type = FileType.CALIBRATION
+            if PreprocessStep.PPCAL not in steps:
+                if exposure.preprocessed.exists():
+                    file = exposure.preprocessed
+        elif cls.has_object_extension(exposure.raw):
+            if not any(cls.is_object_step(step) for step in steps):
+                return
+            file_type = FileType.OBJECT
+            if PreprocessStep.PPOBJ not in steps:
+                if exposure.preprocessed.exists():
+                    file = exposure.preprocessed
+        else:
+            return
+        checker = SpirouHeaderChecker(file)
+        exposure_config = ExposureConfig.from_header_checker(checker)
+        if any(cls.is_exposure_config_used_for_step(exposure_config, step) for step in steps):
+            return file_type, checker
 
     @staticmethod
-    def step_uses_all_calibrations(steps):
-        return steps.preprocess and PreprocessStep.PPCAL in steps.preprocess or steps.calibrations
+    def is_exposure_config_used_for_step(exposure_config: ExposureConfig, step: Step):
+        return Processor.is_exposure_config_used_for_step(exposure_config, step)
 
     @staticmethod
-    def step_uses_all_objects(steps):
-        return steps.preprocess and PreprocessStep.PPOBJ in steps.preprocess
+    def is_calibration_step(step: Step) -> bool:
+        return step == PreprocessStep.PPCAL or isinstance(step, CalibrationStep)
 
     @staticmethod
-    def step_uses_some_objects(steps):
-        return steps.objects
+    def is_object_step(step: Step) -> bool:
+        return step == PreprocessStep.PPOBJ or isinstance(step, ObjectStep)
 
     @staticmethod
-    def has_calibration_extension(file):
+    def has_calibration_extension(file: Path) -> bool:
         return file.name.endswith(('a.fits', 'c.fits', 'd.fits', 'f.fits'))
 
     @staticmethod
-    def has_object_extension(file):
+    def has_object_extension(file: Path) -> bool:
         return file.name.endswith('o.fits')
-
-    @staticmethod
-    def is_desired_object(checker, steps):
-        object_config = ExposureConfig.from_header_checker(checker).object
-        return (ObjectStep.EXTRACT in steps.objects or
-                ObjectStep.POL in steps.objects and object_config.instrument_mode.is_polarimetry() or
-                ObjectStep.FITTELLU in steps.objects and object_config.target == TargetType.STAR or
-                ObjectStep.MKTEMPLATE in steps.objects and object_config.target == TargetType.STAR or
-                ObjectStep.CCF in steps.objects and object_config.target == TargetType.STAR or
-                ObjectStep.PRODUCTS in steps.objects)
 
 
 class FileSelectionFilters:
@@ -78,10 +114,10 @@ class FileSelectionFilters:
         self.targets = targets
         self.unique_targets = set() if unique_targets else None
 
-    def matches_all_filters(self, checker):
+    def matches_all_filters(self, checker: HeaderChecker) -> bool:
         return self.is_desired_runid(checker) and self.is_desired_target(checker)
 
-    def is_desired_runid(self, checker):
+    def is_desired_runid(self, checker: HeaderChecker) -> bool:
         if self.runids is None:
             return True
         run_id = checker.get_runid()
@@ -90,7 +126,7 @@ class FileSelectionFilters:
             return False
         return run_id in self.runids
 
-    def is_desired_target(self, checker):
+    def is_desired_target(self, checker: HeaderChecker) -> bool:
         if self.targets is None:
             return True
         try:
@@ -100,7 +136,7 @@ class FileSelectionFilters:
             log.warning('File %s missing OBJECT keyword, skipping.', checker.file)
             return False
 
-    def is_unique_target(self, checker):
+    def is_unique_target(self, checker: HeaderChecker) -> bool:
         if self.unique_targets is None:
             return True
         target = checker.get_object_name()
@@ -110,5 +146,5 @@ class FileSelectionFilters:
         return False
 
     @classmethod
-    def telluric_standards(cls):
+    def telluric_standards(cls) -> FileSelectionFilters:
         return cls(targets=TELLURIC_STANDARDS)
