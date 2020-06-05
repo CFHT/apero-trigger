@@ -39,8 +39,6 @@ class CalibrationProcessor():
         else:
             calibrations_complete = True
             self.reset_state()
-            self.state.completed_calibrations.add(CalibrationStep.DARK)
-            self.state.completed_calibrations.add(CalibrationStep.BADPIX)
         return {
             'calibrations_complete': calibrations_complete,
             'processed_sequences': self.processed_sequences,
