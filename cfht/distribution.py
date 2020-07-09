@@ -12,8 +12,19 @@ distribution_root = '/data/distribution/spirou/'
 
 def get_distribution_path(source, run_id, distribution_subdirectory):
     distribution_dir = Path(distribution_root, run_id.lower(), distribution_subdirectory)
-    distribution_dir.mkdir(parents=True, exist_ok=True)
+    try:
+        distribution_dir.mkdir(parents=True, exist_ok=True)
+    except OSError as err:
+        log.error('Failed to create distribution directory %s due to', str(distribution_dir), str(err))
     return Path(distribution_dir, source.name)
+
+
+def try_copy(src, dest):
+    try:
+        return shutil.copy2(src, dest)
+    except OSError as err:
+        log.error('Distribution of %s failed due to %s ', str(src), str(err))
+    return dest
 
 
 def distribute_raw_file(path, nonblocking=True):
@@ -22,10 +33,10 @@ def distribute_raw_file(path, nonblocking=True):
     destination = get_distribution_path(path, run_id, 'raw')
     log.info('Distributing %s', destination)
     if nonblocking:
-        Thread(target=shutil.copy2, args=[path, destination]).start()
+        Thread(target=try_copy, args=[path, destination]).start()
         return destination
     else:
-        new_file = shutil.copy2(path, destination)
+        new_file = try_copy(path, destination)
         return Path(new_file)
 
 
@@ -39,6 +50,7 @@ class ProductDistributorFactory:
 
     def get_seqeunce_distributor(self, exposure_statuses):
         return SequenceProductDistributor(self.distribute, self.realtime, exposure_statuses)
+
 
 class ProductDistributor:
     def __init__(self, distribute, quicklook):

@@ -1,5 +1,6 @@
 import subprocess
 
+
 def director_message(message, level=None):
     if level:
         message = level + ': ' + message
