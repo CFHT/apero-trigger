@@ -67,14 +67,15 @@ def reduce_execute(args, drs_class, steps_class, filters_class, ccf_params_class
         trigger.reduce_night(args.night, filters=filters)
     elif args.command == 'subset':
         if args.list:
-            trigger.reduce(args.night, args.list)
+            trigger.reduce([trigger.Exposure(args.night, filename) for filename in args.list])
         elif args.range:
             trigger.reduce_range(args.night, args.range[0], args.range[1], filters=filters)
     elif args.command == 'file':
-        if trigger.preprocess(args.night, args.filename):
-            trigger.process_file(args.night, args.filename)
+        exposure = trigger.Exposure(args.night, args.filename)
+        if trigger.preprocess(exposure):
+            trigger.process_file(exposure)
     elif args.command == 'sequence':
-        trigger.process_sequence(args.night, args.filenames)
+        trigger.process_sequence([trigger.Exposure(args.night, filename) for filename in args.filenames])
 
 
 if __name__ == '__main__':
