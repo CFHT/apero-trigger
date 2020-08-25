@@ -114,14 +114,15 @@ class CfhtDrsTrigger(DrsTrigger):
     def get_file_selector(self) -> FileSelector:
         return CfhtFileSelector()
 
-    def __init__(self, steps, ccf_params: CcfParams, realtime=False, trace=False):
+    def __init__(self, steps: Collection[Step], ccf_params: CcfParams, realtime=False, trace=False):
         handler = CfhtHandler(realtime, trace, steps)
         super().__init__(steps, ccf_params, trace, handler)
 
 
 class CfhtRealtimeTrigger(CfhtDrsTrigger):
     def __init__(self, ccf_params: CcfParams):
-        super().__init__(CfhtDrsSteps.all(), ccf_params, realtime=True)
+        super().__init__(CfhtDrsSteps.from_keys(('preprocess', 'calibrations', 'snronly', 'distraw', 'database')),
+                         ccf_params, realtime=True)
 
     def find_sequences(self, exposures: Iterable[Exposure]) -> Iterable[Sequence[Exposure]]:
         return super().find_sequences(exposures, ignore_incomplete_last=True)
