@@ -73,12 +73,12 @@ class DRS:
         fp_files = [dark.preprocessed.name for dark in fp_exposures]
         return self.runner.run(cal_wave_night_spirou, hc_exposures[0].night, hc_files, fp_files)
 
-    def cal_extract(self, exposure: Exposure) -> bool:
+    def cal_extract(self, exposure: Exposure, **kwargs) -> bool:
         """
         :param exposure: Any exposure that has been preprocessed
         :return: Whether the recipe completed successfully
         """
-        return self.runner.run(cal_extract_spirou, exposure.night, exposure.preprocessed.name)
+        return self.runner.run(cal_extract_spirou, exposure.night, exposure.preprocessed.name, **kwargs)
 
     def cal_leak(self, exposure: Exposure) -> bool:
         """

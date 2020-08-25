@@ -1,7 +1,7 @@
 from enum import auto
 from typing import Iterable
 
-from ..baseinterface.steps import Step, StepsFactory, Steps
+from ..baseinterface.steps import Step, StepsFactory, Steps, off_by_default
 
 
 class PreprocessStep(Step):
@@ -19,6 +19,7 @@ class CalibrationStep(Step):
 
 
 class ObjectStep(Step):
+    SNRONLY = off_by_default()
     EXTRACT = auto()
     LEAK = auto()
     FITTELLU = auto()

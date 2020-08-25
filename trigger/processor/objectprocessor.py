@@ -39,7 +39,7 @@ class ObjectProcessor:
 
     @staticmethod
     def is_object_config_used_for_step(object_config: ObjectConfig, step: ObjectStep) -> bool:
-        if step in (ObjectStep.EXTRACT, ObjectStep.PRODUCTS):
+        if step in (ObjectStep.EXTRACT, ObjectStep.PRODUCTS, ObjectStep.SNRONLY):
             return True
         elif step == ObjectStep.LEAK:
             return object_config.object_type == ObjectType.OBJ_FP
@@ -51,6 +51,8 @@ class ObjectProcessor:
             raise TypeError('invalid object step ' + str(step))
 
     def __extract_object(self, exposure: Exposure) -> Path:
+        if ObjectStep.SNRONLY in self.steps:
+            self.drs.cal_extract(exposure, fiber=Fiber.AB.value)
         if ObjectStep.EXTRACT in self.steps:
             self.drs.cal_extract(exposure)
         if ObjectStep.PRODUCTS in self.steps and not self.drs.trace:
