@@ -36,12 +36,12 @@ class ApiBridge(IExposureApi):
         except FileExistsError:
             pass
         except OSError as err:
-            log.error('Failed to create night directory %s due to', str(link_path.parent), str(err))
+            log.error('Failed to create night directory %s due to %s', str(link_path.parent), str(err))
         return exposure
 
     def __exposure_from_session_path(self, session_path: Path) -> IExposure:
         try:
-            relative_path = Path(session_path).relative_to(self.session_root)
+            relative_path = Path(session_path).relative_to(Path(self.session_root))
         except ValueError:
             raise RuntimeError('Night directory should start with ' + str(self.session_root))
         night = relative_path.parent.name
