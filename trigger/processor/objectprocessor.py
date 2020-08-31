@@ -51,7 +51,8 @@ class ObjectProcessor:
 
     def __extract_object(self, exposure: Exposure) -> Path:
         if ObjectStep.SNRONLY in self.steps:
-            self.drs.cal_extract(exposure, fiber=Fiber.AB.value)
+            self.drs.cal_extract(exposure, fiber=Fiber.AB.value, quicklook=True)
+            return exposure.q2ds(Fiber.AB)
         if ObjectStep.EXTRACT in self.steps:
             self.drs.cal_extract(exposure)
         if ObjectStep.PRODUCTS in self.steps and not self.drs.trace:

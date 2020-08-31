@@ -81,6 +81,10 @@ class Exposure(IExposure):
         product_name = 'e2dsff' if flat_fielded else 'e2ds'
         return self.__extracted_product(product_name, fiber, tellu_suffix, suffix)
 
+    def q2ds(self, fiber: Fiber, flat_fielded=True) -> Path:
+        product_name = 'q2dsff' if flat_fielded else 'q2ds'
+        return self.__extracted_product(product_name, fiber, TelluSuffix.NONE)
+
     def ccf(self, fiber=Fiber.AB, tellu_suffix=TelluSuffix.TCORR) -> Path:
         suffix = CcfParams.mask.replace('.mas', '') + '_' + fiber.value
         return self.e2ds(Fiber.AB, tellu_suffix, suffix='ccf_' + suffix)
