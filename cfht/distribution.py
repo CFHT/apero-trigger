@@ -1,17 +1,13 @@
-import os
 import shutil
 from pathlib import Path
 from threading import Thread
-from typing import Collection, Union
+from typing import Collection
 
 from astropy.io import fits
 
 from logger import log
 from trigger.common import Exposure
 from .dbinterface import DatabaseHeaderConverter, JsonObj
-
-# Make linter happy -- workaround for PyCharm bug: https://youtrack.jetbrains.com/issue/PY-30747
-PathLike = Union[Path, os.PathLike]
 
 distribution_root = '/data/distribution/spirou/'
 
@@ -25,7 +21,7 @@ def get_distribution_path(source: Path, run_id: str, distribution_subdirectory: 
     return Path(distribution_dir, source.name)
 
 
-def try_copy(src: PathLike, dest: PathLike) -> PathLike:
+def try_copy(src: Path, dest: Path) -> Path:
     try:
         return shutil.copy2(src, dest)
     except OSError as err:

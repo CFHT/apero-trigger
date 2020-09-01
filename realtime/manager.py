@@ -11,6 +11,7 @@ from .localdb import DataCache
 from .sequencestatetracker import SequenceStateTracker
 
 SequenceFinder = Callable[[Iterable[IExposure]], Iterable[Sequence[IExposure]]]
+# For some reason using the usual typing method here blows up when we run tests...
 ExposureQueue = 'Queue[IExposure]'
 SequenceQueue = 'Queue[Sequence[IExposure]]'
 ProcessFromQueues = Callable[[ExposureQueue, SequenceQueue, ExposureQueue, SequenceQueue, Value, Value, Event], None]
