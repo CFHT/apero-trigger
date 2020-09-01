@@ -219,7 +219,7 @@ def create_tell_product(exposure: Exposure):
         log.error('Creation of %s failed', product, exc_info=True)
 
 
-def create_ccf_product(exposure: Exposure, ccf_mask: str, fiber: Fiber, telluric_corrected=True):
+def create_ccf_product(exposure: Exposure, fiber: Fiber, telluric_corrected=True):
     """
     Create the v.fits product:
     FITS table containing the radial velocity of the star extracted from the CCF. One cross-correlation mask is used per
@@ -249,7 +249,7 @@ def create_ccf_product(exposure: Exposure, ccf_mask: str, fiber: Fiber, telluric
     product = exposure.final_product('v')
     log.info('Creating %s', product)
     try:
-        ccf_path = exposure.ccf(ccf_mask, fiber, TelluSuffix.tcorr(telluric_corrected))
+        ccf_path = exposure.ccf(fiber, TelluSuffix.tcorr(telluric_corrected))
         ccf_input_hdu = fits.open(ccf_path)[1]
         primary_hdu = fits.PrimaryHDU(header=ccf_input_hdu.header)
         columns = [

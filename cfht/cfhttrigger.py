@@ -7,7 +7,7 @@ from logger import log
 from trigger.baseinterface.drstrigger import ICustomHandler
 from trigger.baseinterface.processor import RecipeFailure
 from trigger.baseinterface.steps import Step
-from trigger.common import CcfParams, DrsSteps, Exposure
+from trigger.common import DrsSteps, Exposure
 from trigger.drstrigger import DrsTrigger
 from trigger.exposureconfig import SpirouExposureConfig
 from trigger.fileselector import FileSelector
@@ -114,20 +114,20 @@ class CfhtDrsTrigger(DrsTrigger):
     def get_file_selector(self) -> FileSelector:
         return CfhtFileSelector()
 
-    def __init__(self, steps: Collection[Step], ccf_params: CcfParams, realtime=False, trace=False):
+    def __init__(self, steps: Collection[Step], realtime=False, trace=False):
         handler = CfhtHandler(realtime, trace, steps)
-        super().__init__(steps, ccf_params, trace, handler)
+        super().__init__(steps, trace, handler)
 
 
 class CfhtRealtimeTrigger(CfhtDrsTrigger):
-    def __init__(self, ccf_params: CcfParams):
+    def __init__(self):
         super().__init__(CfhtDrsSteps.from_keys(('preprocess', 'calibrations', 'snronly', 'distraw', 'database')),
-                         ccf_params, realtime=True)
+                         realtime=True)
 
     def find_sequences(self, exposures: Iterable[Exposure]) -> Iterable[Sequence[Exposure]]:
         return super().find_sequences(exposures, ignore_incomplete_last=True)
 
 
 class CfhtRealtimeTester(CfhtDrsTrigger):
-    def __init__(self, ccf_params: CcfParams):
-        super().__init__(DrsSteps.all(), ccf_params, realtime=True)
+    def __init__(self):
+        super().__init__(DrsSteps.all(), realtime=True)

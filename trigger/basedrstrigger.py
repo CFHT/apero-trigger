@@ -3,7 +3,6 @@ from typing import Collection, Dict, Iterable, Sequence
 from logger import log
 from .baseinterface.drstrigger import ICalibrationState, ICustomHandler, IDrsTrigger
 from .baseinterface.steps import Step
-from .common.drsconstants import CcfParams
 from .common.pathhandler import Exposure
 from .exposureconfig import SpirouExposureConfig
 from .headerchecker import SpirouHeaderChecker
@@ -11,10 +10,10 @@ from .processor import Processor
 
 
 class BaseDrsTrigger(IDrsTrigger):
-    def __init__(self, steps: Collection[Step], ccf_params: CcfParams, trace=False, custom_handler=None):
+    def __init__(self, steps: Collection[Step], trace=False, custom_handler=None):
         self.steps = steps
         self.custom_handler: ICustomHandler = custom_handler
-        self.processor = Processor(self.steps, ccf_params, trace, self.custom_handler)
+        self.processor = Processor(self.steps, trace, self.custom_handler)
 
     def reduce(self, exposures_in_order: Iterable[Exposure]):
         self.processor.reset_state()

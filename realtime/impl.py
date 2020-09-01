@@ -24,9 +24,7 @@ def __load_realtime_trigger() -> IDrsTrigger:
     loader = DrsLoader()
     # TODO: add appropriate typing
     cfht = loader.get_loaded_trigger_module()
-    # TODO load default ccf parameters from DRS
-    ccf_params = cfht.CcfParams('masque_sept18_andres_trans50.mas', 0, 300, 0.5)
-    trigger = cfht.CfhtRealtimeTrigger(ccf_params)
+    trigger = cfht.CfhtRealtimeTrigger()
     return trigger
 
 

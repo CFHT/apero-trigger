@@ -4,14 +4,13 @@ from typing import Collection, Dict, Sequence, Tuple
 from . import packager
 from .drswrapper import DRS
 from ..baseinterface.steps import Step
-from ..common import CcfParams, Exposure, Fiber, ObjectConfig, ObjectStep, ObjectType, TargetType, TelluSuffix
+from ..common import Exposure, Fiber, ObjectConfig, ObjectStep, ObjectType, TargetType, TelluSuffix
 
 
 class ObjectProcessor:
-    def __init__(self, steps: Collection[Step], drs: DRS, ccf_params: CcfParams):
+    def __init__(self, steps: Collection[Step], drs: DRS):
         self.steps = steps
         self.drs = drs
-        self.ccf_params = ccf_params
 
     def process_object_exposure(self, object_config: ObjectConfig, exposure: Exposure) -> Dict:
         extracted_path = self.__extract_object(exposure)
@@ -69,15 +68,13 @@ class ObjectProcessor:
         return telluric_corrected
 
     def __ccf(self, exposure: Exposure, telluric_corrected: bool) -> Tuple[bool, Path]:
-        # We are not passing in the ccf params, but we are using them to generate the ccf filename
-        mask = self.ccf_params.mask
-        ccf_path = exposure.ccf(mask, tellu_suffix=TelluSuffix.tcorr(telluric_corrected))
+        ccf_path = exposure.ccf(tellu_suffix=TelluSuffix.tcorr(telluric_corrected))
         if ObjectStep.CCF in self.steps:
             ccf_calculated = self.drs.cal_ccf(exposure, telluric_corrected)
         else:
             ccf_calculated = ccf_path.exists()
         if ObjectStep.PRODUCTS in self.steps and not self.drs.trace:
-            packager.create_ccf_product(exposure, mask, Fiber.AB, telluric_corrected=telluric_corrected)
+            packager.create_ccf_product(exposure, Fiber.AB, telluric_corrected=telluric_corrected)
         return ccf_calculated, ccf_path
 
     def __process_polar_sequence(self, exposures: Sequence[Exposure]) -> Dict:

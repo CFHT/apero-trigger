@@ -1,6 +1,6 @@
 from enum import Enum
 from pathlib import Path
-from typing import List, NamedTuple
+from typing import List
 
 from apero.core import constants
 from apero.science import telluric
@@ -24,8 +24,7 @@ class Fiber(Enum):
     C = 'C'
 
 
-class CcfParams(NamedTuple):
-    mask: str
-    rv: float
-    width: float
-    step: float
+class CcfParams:
+    mask: str = config['CCF_DEFAULT_MASK']
+    width: float = config['CCF_DEFAULT_WIDTH']
+    step: float = config['CCF_DEFAULT_STEP']

@@ -14,11 +14,6 @@ def get_base_argument_parser(additional_step_options = None):
     subparsers.required = True
     reduce_parser = argparse.ArgumentParser(add_help=False)
     reduce_parser.add_argument('--trace', action='store_true', help='Only simulate DRS commands, requires pp files')
-    # TODO load default ccf parameters from DRS
-    reduce_parser.add_argument('--ccfmask', type=str, default='masque_sept18_andres_trans50.mas')
-    reduce_parser.add_argument('--ccfv0', type=float, default=0)
-    reduce_parser.add_argument('--ccfrange', type=float, default=300)
-    reduce_parser.add_argument('--ccfstep', type=float, default=0.5)
     reduce_parser.add_argument('--runid', nargs='+', help='Only process files belonging to the runid(s)')
     reduce_parser.add_argument('--target', nargs='+', help='Only process files that are observations of the target(s)')
 
@@ -51,13 +46,12 @@ def get_base_argument_parser(additional_step_options = None):
     return parser, subparsers
 
 
-def reduce_execute(args, drs_class, steps_class, filters_class, ccf_params_class):
-    ccf_params = ccf_params_class(args.ccfmask, args.ccfv0, args.ccfrange, args.ccfstep)
+def reduce_execute(args, drs_class, steps_class, filters_class):
     if args.steps:
         steps = steps_class.from_keys(args.steps)
     else:
         steps = steps_class.all()
-    trigger = drs_class(steps, ccf_params=ccf_params, trace=args.trace)
+    trigger = drs_class(steps, trace=args.trace)
     filters = filters_class(runids=args.runid, targets=args.target)
     if args.command == 'all':
         trigger.reduce_all_nights(filters=filters, num_processes=args.parallel)
@@ -79,7 +73,7 @@ def reduce_execute(args, drs_class, steps_class, filters_class, ccf_params_class
 
 
 if __name__ == '__main__':
-    from trigger.common import DrsSteps, CcfParams
+    from trigger.common import DrsSteps
     from trigger.drstrigger import DrsTrigger
     from trigger.fileselector import FileSelectionFilters
 
@@ -93,4 +87,4 @@ if __name__ == '__main__':
     if args.command == 'version':
         print(DrsTrigger.drs_version())
     else:
-        reduce_execute(args, DrsTrigger, DrsSteps, FileSelectionFilters, CcfParams)
+        reduce_execute(args, DrsTrigger, DrsSteps, FileSelectionFilters)

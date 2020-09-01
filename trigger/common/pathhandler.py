@@ -3,7 +3,7 @@ from __future__ import annotations
 from enum import Enum
 from pathlib import Path
 
-from .drsconstants import Fiber, RootDataDirectories
+from .drsconstants import CcfParams, Fiber, RootDataDirectories
 from ..baseinterface.exposure import IExposure
 
 
@@ -81,8 +81,8 @@ class Exposure(IExposure):
         product_name = 'e2dsff' if flat_fielded else 'e2ds'
         return self.__extracted_product(product_name, fiber, tellu_suffix, suffix)
 
-    def ccf(self, mask: str, fiber=Fiber.AB, tellu_suffix=TelluSuffix.TCORR) -> Path:
-        suffix = mask.replace('.mas', '') + '_' + fiber.value
+    def ccf(self, fiber=Fiber.AB, tellu_suffix=TelluSuffix.TCORR) -> Path:
+        suffix = CcfParams.mask.replace('.mas', '') + '_' + fiber.value
         return self.e2ds(Fiber.AB, tellu_suffix, suffix='ccf_' + suffix)
 
     def __extracted_product(self, product: str, fiber: Fiber, tellu_suffix: TelluSuffix, suffix: str = None) -> Path:

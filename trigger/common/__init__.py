@@ -1,6 +1,5 @@
 from . import drsconstants, exposureconfig, pathhandler, steps
 
-CcfParams = drsconstants.CcfParams
 Fiber = drsconstants.Fiber
 TELLURIC_STANDARDS = drsconstants.TELLURIC_STANDARDS
 

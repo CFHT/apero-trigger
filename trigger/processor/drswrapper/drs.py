@@ -6,7 +6,7 @@ from apero.recipes.spirou import cal_badpix_spirou, cal_ccf_spirou, cal_extract_
 
 from .reciperunner import RecipeRunner
 from ...baseinterface.processor import IErrorHandler
-from ...common.drsconstants import CcfParams, Fiber
+from ...common.drsconstants import Fiber
 from ...common.pathhandler import Exposure, TelluSuffix
 
 
@@ -94,18 +94,14 @@ class DRS:
         """
         return self.runner.run(obj_fit_tellu_spirou, exposure.night, exposure.e2ds(Fiber.AB).name)
 
-    def cal_ccf(self, exposure: Exposure, telluric_corrected=True, params: CcfParams = None) -> bool:
+    def cal_ccf(self, exposure: Exposure, telluric_corrected=True) -> bool:
         """
         :param exposure: OBJ_DARK or OBJ_FP exposure that has been extracted
         :param telluric_corrected: Whether to use telluric corrected e2ds
-        :param params: parameters for ccf
         :return: Whether the recipe completed successfully
         """
         file = exposure.e2ds(Fiber.AB, TelluSuffix.tcorr(telluric_corrected)).name
-        if params:
-            return self.runner.run(cal_ccf_spirou, exposure.night, file, **params._asdict())
-        else:
-            return self.runner.run(cal_ccf_spirou, exposure.night, file)
+        return self.runner.run(cal_ccf_spirou, exposure.night, file)
 
     def pol(self, exposures: Sequence[Exposure], telluric_corrected=True) -> bool:
         """

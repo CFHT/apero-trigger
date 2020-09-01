@@ -5,16 +5,15 @@ from .drswrapper import DRS
 from .objectprocessor import ObjectProcessor
 from ..baseinterface.processor import IErrorHandler
 from ..baseinterface.steps import Step
-from ..common import CalibrationStep, CcfParams, Exposure, ExposureConfig, ObjectStep, PreprocessStep
+from ..common import CalibrationStep, Exposure, ExposureConfig, ObjectStep, PreprocessStep
 
 
 class Processor:
-    def __init__(self, steps: Collection[Step], ccf_params: CcfParams, trace: bool,
-                 error_handler: IErrorHandler):
+    def __init__(self, steps: Collection[Step], trace: bool, error_handler: IErrorHandler):
         self.steps = steps
         self.drs = DRS(trace, error_handler=error_handler)
         self.calibration_processor = CalibrationProcessor(steps, self.drs)
-        self.object_processor = ObjectProcessor(steps, self.drs, ccf_params)
+        self.object_processor = ObjectProcessor(steps, self.drs)
 
     def preprocess_exposure(self, config: ExposureConfig, exposure: Exposure) -> bool:
         if (config.object and PreprocessStep.PPOBJ in self.steps

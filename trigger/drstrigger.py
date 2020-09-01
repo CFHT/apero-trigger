@@ -4,14 +4,14 @@ from typing import Collection, Iterable, Sequence, Tuple
 from logger import log
 from .basedrstrigger import BaseDrsTrigger
 from .baseinterface.steps import Step
-from .common import CcfParams, Exposure, Night
+from .common import Exposure, Night
 from .common.drsconstants import DRS_VERSION, RootDataDirectories
 from .fileselector import FileSelectionFilters, FileSelector
 
 
 class DrsTrigger(BaseDrsTrigger):
-    def __init__(self, steps: Collection[Step], ccf_params: CcfParams, trace=False, custom_handler=None):
-        super().__init__(steps, ccf_params, trace, custom_handler)
+    def __init__(self, steps: Collection[Step], trace=False, custom_handler=None):
+        super().__init__(steps, trace, custom_handler)
 
     @staticmethod
     def drs_version() -> str:
