@@ -29,7 +29,8 @@ if __name__ == '__main__':
 
     if args.command == 'realtime' or args.command == 'listener':
         queue = run_listener(args.port)
-        load_and_start_realtime(args.processes, queue)
+        load_and_start_realtime(args.processes, queue, 'realtime_config',
+                                ('preprocess', 'calibrations', 'snronly', 'distraw', 'database'), False)
     else:
         loader = DrsLoader(args.config)
         cfht = loader.get_loaded_trigger_module()

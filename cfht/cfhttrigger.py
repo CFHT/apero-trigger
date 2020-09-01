@@ -7,7 +7,7 @@ from logger import log
 from trigger.baseinterface.drstrigger import ICustomHandler
 from trigger.baseinterface.processor import RecipeFailure
 from trigger.baseinterface.steps import Step
-from trigger.common import DrsSteps, Exposure
+from trigger.common import Exposure
 from trigger.drstrigger import DrsTrigger
 from trigger.exposureconfig import SpirouExposureConfig
 from trigger.fileselector import FileSelector
@@ -15,7 +15,7 @@ from .dbinterface import DatabaseHeaderConverter, QsoDatabase
 from .director import director_message
 from .distribution import ProductDistributorFactory, distribute_raw_file
 from .fileselector import CfhtFileSelector
-from .steps import CfhtDrsSteps, CfhtStep
+from .steps import CfhtStep
 
 TRIGGER_VERSION = '0.6.002'
 
@@ -120,14 +120,8 @@ class CfhtDrsTrigger(DrsTrigger):
 
 
 class CfhtRealtimeTrigger(CfhtDrsTrigger):
-    def __init__(self):
-        super().__init__(CfhtDrsSteps.from_keys(('preprocess', 'calibrations', 'snronly', 'distraw', 'database')),
-                         realtime=True)
+    def __init__(self, steps: Collection[Step], trace=False):
+        super().__init__(steps, realtime=True, trace=trace)
 
     def find_sequences(self, exposures: Iterable[Exposure]) -> Iterable[Sequence[Exposure]]:
         return super().find_sequences(exposures, ignore_incomplete_last=True)
-
-
-class CfhtRealtimeTester(CfhtDrsTrigger):
-    def __init__(self):
-        super().__init__(DrsSteps.all(), realtime=True)
