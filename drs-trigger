@@ -27,14 +27,11 @@ if __name__ == '__main__':
         log_files.append((timestamp, 'ERROR'))
     configure_logger(console_level=args.loglevel, log_files=log_files)
 
-    if args.config is not None:
-        DrsLoader.set_drs_config_subdir(args.config)
-
     if args.command == 'realtime' or args.command == 'listener':
         queue = run_listener(args.port)
         load_and_start_realtime(args.processes, queue)
     else:
-        loader = DrsLoader()
+        loader = DrsLoader(args.config)
         cfht = loader.get_loaded_trigger_module()
         from cfht import CfhtDrsTrigger, CfhtDrsSteps, FileSelectionFilters
 

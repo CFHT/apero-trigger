@@ -1,15 +1,25 @@
+import os
+from pathlib import Path
+from types import ModuleType
+from typing import Optional
+
+
 class DrsLoader:
-    BIN_DIR = '/data/spirou/trigger/'
+    CONFIG_ROOT = '/data/spirou/trigger/'
     SESSION_DIR = '/data/sessions/spirou/'
 
-    @staticmethod
-    def set_drs_config_subdir(subdirectory: str):
-        import os
-        os.environ['DRS_UCONFIG'] = os.path.join(DrsLoader.BIN_DIR, subdirectory)
-
-    def __init__(self):
+    def __init__(self, config_subdirectory: Optional[str] = None):
+        if config_subdirectory is not None:
+            os.environ['DRS_UCONFIG'] = os.path.join(DrsLoader.CONFIG_ROOT, config_subdirectory)
+        self.__config_path = os.environ['DRS_UCONFIG']
         import cfht
         self.cfht = cfht
 
-    def get_loaded_trigger_module(self):
+    @property
+    def config_path(self) -> Optional[Path]:
+        if self.__config_path:
+            return Path(self.__config_path)
+        return None
+
+    def get_loaded_trigger_module(self) -> ModuleType('cfht'):
         return self.cfht

@@ -20,9 +20,7 @@ def load_and_start_realtime(num_processes: int, file_queue: Queue[Path]):
 
 
 def __load_realtime_trigger() -> IDrsTrigger:
-    DrsLoader.set_drs_config_subdir('realtime_config')
-    loader = DrsLoader()
-    # TODO: add appropriate typing
+    loader = DrsLoader('realtime_config')
     cfht = loader.get_loaded_trigger_module()
     trigger = cfht.CfhtRealtimeTrigger()
     return trigger
