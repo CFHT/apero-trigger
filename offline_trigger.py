@@ -1,49 +1,49 @@
-#!/data/spirou/offline/venv/bin/python3 -u
+#!/usr/bin/env python
 
 import argparse
 
 import logger
 
 
-def get_base_argument_parser(additional_step_options = None):
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--loglevel', choices=['INFO', 'WARNING', 'ERROR'], default='INFO')
-    parser.add_argument('--logfile', action='append', nargs=2, metavar=('LOGFILE', '{INFO,WARNING,ERROR}'))
+def get_base_argument_parsers(additional_step_options=None):
+    parsers = {'parser': argparse.ArgumentParser()}
+    parsers['parser'].add_argument('--loglevel', choices=['INFO', 'WARNING', 'ERROR'], default='INFO')
+    parsers['parser'].add_argument('--logfile', action='append', nargs=2, metavar=('LOGFILE', '{INFO,WARNING,ERROR}'))
 
-    subparsers = parser.add_subparsers(dest='command')
-    subparsers.required = True
-    reduce_parser = argparse.ArgumentParser(add_help=False)
-    reduce_parser.add_argument('--trace', action='store_true', help='Only simulate DRS commands, requires pp files')
-    reduce_parser.add_argument('--runid', nargs='+', help='Only process files belonging to the runid(s)')
-    reduce_parser.add_argument('--target', nargs='+', help='Only process files that are observations of the target(s)')
+    parsers['command'] = parsers['parser'].add_subparsers(dest='command')
+    parsers['command'].required = True
+    parsers['reduce'] = argparse.ArgumentParser(add_help=False)
+    parsers['reduce'].add_argument('--trace', action='store_true', help='Only simulate DRS commands, requires pp files')
+    parsers['reduce'].add_argument('--runid', nargs='+', help='Only process observations belonging to the runid(s)')
+    parsers['reduce'].add_argument('--target', nargs='+', help='Only process observations of the target(s)')
 
-    steps_options = ['preprocess', 'ppcal', 'ppobj',
-                     'calibrations', 'badpix', 'loc', 'shape', 'flat', 'thermal', 'wave',
-                     'objects', 'extract', 'leak', 'fittellu', 'ccf', 'pol', 'products']
+    parsers['steps'] = ['preprocess', 'ppcal', 'ppobj',
+                        'calibrations', 'badpix', 'loc', 'shape', 'flat', 'thermal', 'wave',
+                        'objects', 'snronly', 'extract', 'leak', 'fittellu', 'ccf', 'pol', 'products']
     if additional_step_options:
-        steps_options.extend(additional_step_options)
-    reduce_parser.add_argument('--steps', nargs='+', choices=steps_options)
+        parsers['steps'].extend(additional_step_options)
+    parsers['reduce'].add_argument('--steps', nargs='+', choices=parsers['steps'])
 
-    multi_night_parser = argparse.ArgumentParser(parents=[reduce_parser], add_help=False)
-    multi_night_parser.add_argument('--parallel', type=int, help='If used, number of parallel processes to run')
-    subparsers.add_parser('all', parents=[multi_night_parser], help='Reduce all nights')
-    reduce_qrun_parser = subparsers.add_parser('qrunid', parents=[multi_night_parser],
-                                               help='Reduce all nights belonging to qrunid')
-    reduce_qrun_parser.add_argument('qrunid')
+    parsers['multinight'] = argparse.ArgumentParser(parents=[parsers['reduce']], add_help=False)
+    parsers['multinight'].add_argument('--parallel', type=int, help='If used, number of parallel processes to run')
+    parsers['command'].add_parser('all', parents=[parsers['multinight']], help='Reduce all nights')
+    parsers['qrunid'] = parsers['command'].add_parser('qrunid', parents=[parsers['multinight']],
+                                                      help='Reduce all nights belonging to qrunid')
+    parsers['qrunid'].add_argument('qrunid')
 
-    single_night_parser = argparse.ArgumentParser(parents=[reduce_parser], add_help=False)
-    single_night_parser.add_argument('night')
-    subparsers.add_parser('night', parents=[single_night_parser], help='Reduce a night directory')
-    reduce_subset_parser = subparsers.add_parser('subset', parents=[single_night_parser], help='Reduce part of night')
-    reduce_subset_flags = reduce_subset_parser.add_mutually_exclusive_group(required=True)
-    reduce_subset_flags.add_argument('--range', nargs=2, help='Files at start and end of range')
-    reduce_subset_flags.add_argument('--list', nargs='+', help='Specific list of files')
-    reduce_file_parse = subparsers.add_parser('file', parents=[single_night_parser], help='Reduce a single file')
-    reduce_file_parse.add_argument('filename')
-    reduce_sequence_parse = subparsers.add_parser('sequence', parents=[single_night_parser],
-                                                  help='Reduce a sequence of files together')
-    reduce_sequence_parse.add_argument('filenames', nargs='+')
-    return parser, subparsers
+    parsers['night'] = argparse.ArgumentParser(parents=[parsers['reduce']], add_help=False)
+    parsers['night'].add_argument('night')
+    parsers['command'].add_parser('night', parents=[parsers['night']], help='Reduce a night directory')
+    parsers['subset'] = parsers['command'].add_parser('subset', parents=[parsers['night']], help='Reduce part of night')
+    parsers['subset args'] = parsers['subset'].add_mutually_exclusive_group(required=True)
+    parsers['subset args'].add_argument('--range', nargs=2, help='Files at start and end of range')
+    parsers['subset args'].add_argument('--list', nargs='+', help='Specific list of files')
+    parsers['file'] = parsers['command'].add_parser('file', parents=[parsers['night']], help='Reduce a single file')
+    parsers['file'].add_argument('filename')
+    parsers['sequence'] = parsers['command'].add_parser('sequence', parents=[parsers['night']],
+                                                        help='Reduce a sequence of files together')
+    parsers['sequence'].add_argument('filenames', nargs='+')
+    return parsers
 
 
 def reduce_execute(args, drs_class, steps_class, filters_class):
@@ -77,10 +77,10 @@ if __name__ == '__main__':
     from trigger.drstrigger import DrsTrigger
     from trigger.fileselector import FileSelectionFilters
 
-    parser, subparsers = get_base_argument_parser()
-    subparsers.add_parser('version', help='DRS version information')
+    parsers = get_base_argument_parsers()
+    parsers['command'].add_parser('version', help='DRS version information')
 
-    args = parser.parse_args()
+    args = parsers['parser'].parse_args()
 
     logger.configure_logger(console_level=args.loglevel, log_files=args.logfile)
 
