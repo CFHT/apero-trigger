@@ -15,6 +15,7 @@ class FiberType(Enum):
     HCONE = 'HCONE'
     HCTWO = 'HCTWO'
     OBJ = 'OBJ'
+    LFC = 'LFC'
 
 
 class ExposureType(EnumMeta):
@@ -60,12 +61,15 @@ class CalibrationType(Enum, metaclass=ExposureType):
     DARK_DARK_INT = (FiberType.DARK, FiberType.DARK, 'INT')
     DARK_DARK_TEL = (FiberType.DARK, FiberType.DARK, 'TEL')
     DARK_FLAT = (FiberType.DARK, FiberType.FLAT)
+    DARK_FP = (FiberType.DARK, FiberType.FP)
     FLAT_DARK = (FiberType.FLAT, FiberType.DARK)
     FLAT_FLAT = (FiberType.FLAT, FiberType.FLAT)
     FP_FP = (FiberType.FP, FiberType.FP)
     HCONE_HCONE = (FiberType.HCONE, FiberType.HCONE)
     FP_HCONE = (FiberType.FP, FiberType.HCONE)
     HCONE_FP = (FiberType.HCONE, FiberType.FP)
+    LFC_LFC = (FiberType.LFC, FiberType.LFC)
+    LFC_FP = (FiberType.LFC, FiberType.FP)
     UNKNOWN = auto()
 
     @staticmethod
