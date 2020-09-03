@@ -42,8 +42,8 @@ def processor(mock_trigger, session_dir):
 
 
 @pytest.fixture
-def api_bridge(remote_api, session_dir, mock_trigger):
-    return ApiBridge(remote_api.new_exposures, session_dir, mock_trigger)
+def api_bridge(remote_api, mock_trigger):
+    return ApiBridge(remote_api.new_exposures, mock_trigger)
 
 
 @pytest.fixture

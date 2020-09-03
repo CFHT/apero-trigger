@@ -22,7 +22,7 @@ class MockApi(IExposureApi):
         found = []
         while not self.new_exposures.empty():
             exposure_path = self.new_exposures.get()
-            exposure = self.trigger.Exposure('', Path(exposure_path).name)
+            exposure = self.trigger.exposure_from_path(Path(exposure_path))
             found.append(exposure)
         return found
 
@@ -65,7 +65,17 @@ class MockExposure(IExposure):
 
     @property
     def preprocessed(self) -> Path:
-        pass
+        return self.root_dir.joinpath('tmp', self.__night, self.__file)
+
+    @staticmethod
+    def from_path(file_path: Path, root_dir: Path):
+        try:
+            relative_path = Path(file_path).relative_to(Path(root_dir))
+        except ValueError:
+            raise RuntimeError('Night directory should start with ' + str(root_dir))
+        night = relative_path.parent.name
+        filename = relative_path.name
+        return MockExposure(root_dir, night, filename)
 
 
 def files_as_exposures(root, night, files):
@@ -96,10 +106,11 @@ class MockProcessor(mock.MagicMock):
 
 
 class MockTrigger(IDrsTrigger):
-    def __init__(self, root_dir, log_queue=None):
+    def __init__(self, root_dir, session_dir):
         self.root_dir = root_dir
+        self.session_dir = session_dir
         self.processor = MockProcessor()
-        self.log = Log(log_queue)
+        self.log = Log()
 
     def __reduce__(self):
         return self.__class__, (self.root_dir, self.log.log_queue)
@@ -116,8 +127,11 @@ class MockTrigger(IDrsTrigger):
         self.log.put((TriggerActionT.PROCESS_SEQUENCE, exposures))
         return {}
 
-    def Exposure(self, night, filename):
+    def exposure(self, night, filename):
         return MockExposure(Path(self.root_dir), night, filename)
+
+    def exposure_from_path(self, path: Path) -> IExposure:
+        return MockExposure.from_path(path, Path(self.session_dir))
 
     def reduce(self, exposures_in_order):
         pass

@@ -15,6 +15,7 @@ from .dbinterface import DatabaseHeaderConverter, QsoDatabase
 from .director import director_message
 from .distribution import ProductDistributorFactory, distribute_raw_file
 from .fileselector import CfhtFileSelector
+from .sessionlink import setup_symlink
 from .steps import CfhtStep
 
 TRIGGER_VERSION = '0.6.002'
@@ -117,6 +118,9 @@ class CfhtDrsTrigger(DrsTrigger):
     def __init__(self, steps: Collection[Step], realtime=False, trace=False):
         handler = CfhtHandler(realtime, trace, steps)
         super().__init__(steps, trace, handler)
+
+    def exposure_from_path(self, path: Path) -> Exposure:
+        return setup_symlink(path)
 
 
 class CfhtRealtimeTrigger(CfhtDrsTrigger):

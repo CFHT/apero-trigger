@@ -6,7 +6,6 @@ from typing import Optional
 
 class DrsLoader:
     CONFIG_ROOT = '/data/spirou/apero/config/'
-    SESSION_DIR = '/data/sessions/spirou/'
 
     def __init__(self, config_subdirectory: Optional[str] = None):
         if config_subdirectory is not None:

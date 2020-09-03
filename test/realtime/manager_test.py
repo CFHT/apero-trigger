@@ -102,7 +102,7 @@ def test_data():
 
 @pytest.fixture
 def check_data(test_data, mock_trigger):
-    return [mock_trigger.Exposure('', f) for f in test_data]
+    return [mock_trigger.exposure('', f) for f in test_data]
 
 
 def start_realtime_process(api, cache, processor):

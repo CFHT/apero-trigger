@@ -8,12 +8,11 @@ from astropy.io import fits
 from logger import log
 from trigger.common import Exposure
 from .dbinterface import DatabaseHeaderConverter, JsonObj
-
-distribution_root = '/data/distribution/spirou/'
+from .pathconfig import DISTRIBUTION_ROOT
 
 
 def get_distribution_path(source: Path, run_id: str, distribution_subdirectory: str) -> Path:
-    distribution_dir = Path(distribution_root, run_id.lower(), distribution_subdirectory)
+    distribution_dir = Path(DISTRIBUTION_ROOT, run_id.lower(), distribution_subdirectory)
     try:
         distribution_dir.mkdir(parents=True, exist_ok=True)
     except OSError as err:

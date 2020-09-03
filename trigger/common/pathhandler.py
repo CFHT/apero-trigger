@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from enum import Enum
 from pathlib import Path
+from typing import Optional
 
 from .drsconstants import CcfParams, Fiber, RootDataDirectories
 from ..baseinterface.exposure import IExposure
@@ -122,3 +123,14 @@ class Exposure(IExposure):
     @property
     def odometer(self) -> int:
         return int(self.obsid[:-1])
+
+    @staticmethod
+    def from_path(file_path: Path, custom_raw_root: Optional[Path] = None) -> Exposure:
+        root_dir = RootDataDirectories.input if custom_raw_root is None else custom_raw_root
+        try:
+            relative_path = Path(file_path).relative_to(Path(root_dir))
+        except ValueError:
+            raise RuntimeError('Night directory should start with ' + str(root_dir))
+        night = relative_path.parent.name
+        filename = relative_path.name
+        return Exposure(night, filename)

@@ -1,3 +1,4 @@
+from pathlib import Path
 from typing import Collection, Dict, Iterable, Sequence
 
 from logger import log
@@ -134,6 +135,8 @@ class BaseDrsTrigger(IDrsTrigger):
     def calibration_state(self, state: ICalibrationState):
         self.processor.calibration_processor.state = state
 
-    @staticmethod
-    def Exposure(night: str, file: str) -> Exposure:
+    def exposure(self, night: str, file: str) -> Exposure:
         return Exposure(night, file)
+
+    def exposure_from_path(self, file_path: Path) -> Exposure:
+        return Exposure.from_path(file_path)

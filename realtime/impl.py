@@ -16,7 +16,7 @@ from .process import RealtimeProcessor
 def load_and_start_realtime(num_processes: int, file_queue: Queue[Path],
                             config_subdir: Optional[str], steps: Optional[Iterable[str]], trace: Optional[bool]):
     trigger = __load_realtime_trigger(config_subdir, steps, trace)
-    remote_api = ApiBridge(file_queue, DrsLoader.SESSION_DIR, trigger)
+    remote_api = ApiBridge(file_queue, trigger)
     realtime_cache = RealtimeStateCache()
     process_from_queues = partial(__process_from_queues, config_subdir, steps, trace)
     start_realtime(trigger.find_sequences, remote_api, realtime_cache, process_from_queues, num_processes,

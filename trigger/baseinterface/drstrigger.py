@@ -1,4 +1,5 @@
 from abc import ABC, abstractmethod
+from pathlib import Path
 from typing import Dict, Iterable, Sequence
 
 from .exposure import IExposure
@@ -59,7 +60,10 @@ class IDrsTrigger(ABC):
     def calibration_state(self, state: ICalibrationState):
         pass
 
-    @staticmethod
     @abstractmethod
-    def Exposure(night: str, file: str) -> IExposure:
+    def exposure(self, night: str, file: str) -> IExposure:
+        pass
+
+    @abstractmethod
+    def exposure_from_path(self, path: Path) -> IExposure:
         pass

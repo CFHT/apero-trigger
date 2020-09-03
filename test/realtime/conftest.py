@@ -25,8 +25,8 @@ def remote_api(mock_trigger):
 
 
 @pytest.fixture
-def mock_trigger(link_dir):
-    return MockTrigger(link_dir)
+def mock_trigger(link_dir, session_dir):
+    return MockTrigger(link_dir, session_dir)
 
 
 @pytest.fixture
