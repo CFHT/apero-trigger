@@ -16,12 +16,15 @@ class RealtimeProcessor:
         self.trigger = trigger
         self.calibration_cache = calibration_cache
         self.tick_interval = tick_interval
+        self.process_index = 0
 
     def process_from_queues(self, exposure_queue: Queue[IExposure], sequence_queue: Queue[Sequence[IExposure]],
                             exposures_done: Queue[IExposure], sequences_done: Queue[Sequence[IExposure]],
                             started_processes: Value, finished_processes: Value, stop_signal: Event):
         with started_processes.get_lock():
             started_processes.value += 1
+            self.process_index = started_processes.value
+        log.info('Started process %i', self.process_index)
         while not stop_signal.is_set():
             self.process_next_from_queue(exposure_queue, sequence_queue, exposures_done, sequences_done)
             time.sleep(self.tick_interval)
@@ -38,14 +41,14 @@ class RealtimeProcessor:
             except queue.Empty:
                 pass
             else:
-                log.info('Processing %s', exposure)
+                log.info('Process %i processing %s', self.process_index, exposure)
                 try:
                     self.__process_exposure(exposure)
                 except:
                     log.error('An error occurred while processing %s', exposure, exc_info=True)
                 exposures_done.put(exposure)
         else:
-            log.info('Processing %s', sequence)
+            log.info('Process %i processing %s', self.process_index, sequence)
             try:
                 self.__process_sequence(sequence)
             except:
