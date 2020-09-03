@@ -148,6 +148,9 @@ class MockTrigger(IDrsTrigger):
     def calibration_state(self, state):
         pass
 
+    def reset_calibration_state(self):
+        pass
+
 
 class ProcessRunner:
     def __init__(self, target, args):

@@ -30,7 +30,7 @@ class BaseDrsTrigger(IDrsTrigger):
             try:
                 result = self.process_sequence(sequence)
                 if result and result.get('calibrations_complete'):
-                    self.processor.reset_state(partial=True)
+                    self.reset_calibration_state()
             except:
                 log.error('Critical failure processing %s, skipping', sequence, exc_info=True)
 
@@ -134,6 +134,9 @@ class BaseDrsTrigger(IDrsTrigger):
     @calibration_state.setter
     def calibration_state(self, state: ICalibrationState):
         self.processor.calibration_processor.state = state
+
+    def reset_calibration_state(self):
+        self.processor.calibration_processor.reset_state(partial=False)
 
     def exposure(self, night: str, file: str) -> Exposure:
         return Exposure(night, file)

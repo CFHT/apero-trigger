@@ -61,6 +61,10 @@ class IDrsTrigger(ABC):
         pass
 
     @abstractmethod
+    def reset_calibration_state(self):
+        pass
+
+    @abstractmethod
     def exposure(self, night: str, file: str) -> IExposure:
         pass
 

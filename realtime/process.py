@@ -64,4 +64,6 @@ class RealtimeProcessor:
         result = self.trigger.process_sequence(sequence)
         # We only save the calibration state if the sequence was a calibration sequence.
         if result and 'calibrations_complete' in result:
+            if result.get('calibrations_complete'):
+                self.trigger.reset_calibration_state()
             self.calibration_cache.save(self.trigger.calibration_state)

@@ -35,8 +35,8 @@ class Processor:
         elif config.object:
             return self.object_processor.process_object_sequence(config.object, exposures)
 
-    def reset_state(self, partial=False):
-        self.calibration_processor.reset_state(partial)
+    def reset_state(self):
+        self.calibration_processor.reset_state(partial=False)
 
     @staticmethod
     def is_exposure_config_used_for_step(config: ExposureConfig, step: Step) -> bool:
