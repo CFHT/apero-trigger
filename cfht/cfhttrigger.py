@@ -18,7 +18,7 @@ from .fileselector import CfhtFileSelector
 from .sessionlink import setup_symlink
 from .steps import CfhtStep
 
-TRIGGER_VERSION = '0.6.002'
+TRIGGER_VERSION = '0.6.003'
 
 
 class CfhtHandler(ICustomHandler):
