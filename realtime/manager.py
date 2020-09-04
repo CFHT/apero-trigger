@@ -14,6 +14,8 @@ SequenceFinder = Callable[[Iterable[IExposure]], Iterable[Sequence[IExposure]]]
 # For some reason using the usual typing method here blows up when we run tests...
 ExposureQueue = 'Queue[IExposure]'
 SequenceQueue = 'Queue[Sequence[IExposure]]'
+# Need a forward reference...
+RealtimeStateCache = DataCache['Realtime']
 ProcessFromQueues = Callable[[ExposureQueue, SequenceQueue, ExposureQueue, SequenceQueue, Value, Value, Event], None]
 
 
@@ -23,7 +25,7 @@ class IExposureApi(ABC):
         pass
 
 
-def start_realtime(find_sequences: SequenceFinder, remote_api: IExposureApi, realtime_cache: DataCache,
+def start_realtime(find_sequences: SequenceFinder, remote_api: IExposureApi, realtime_cache: RealtimeStateCache,
                    process_from_queues: Callable, num_processes: int, fetch_interval: float, tick_interval: float,
                    started_running: Event = None, finished_running: Event = None, stop_running: Event = None):
     if started_running is None:
@@ -43,7 +45,7 @@ def start_realtime(find_sequences: SequenceFinder, remote_api: IExposureApi, rea
 
 
 class Realtime:
-    def __init__(self, sequence_finder: SequenceFinder, remote_api: IExposureApi, local_db: DataCache):
+    def __init__(self, sequence_finder: SequenceFinder, remote_api: IExposureApi, local_db: RealtimeStateCache):
         self.__construct()
         self.sequence_finder = sequence_finder
         self.remote_api = remote_api
@@ -60,7 +62,7 @@ class Realtime:
         self.sequence_out_queue = Queue()
 
     # Need to call this after __setstate__ is called, e.g. after loading from pickle.
-    def inject(self, sequence_finder: SequenceFinder, remote_api: IExposureApi, local_db: DataCache):
+    def inject(self, sequence_finder: SequenceFinder, remote_api: IExposureApi, local_db: RealtimeStateCache):
         self.sequence_finder = sequence_finder
         self.remote_api = remote_api
         self.local_db = local_db

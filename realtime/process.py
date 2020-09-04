@@ -6,13 +6,15 @@ from multiprocessing import Event, Queue, Value
 from typing import Sequence
 
 from logger import log
-from trigger.baseinterface.drstrigger import IDrsTrigger
+from trigger.baseinterface.drstrigger import ICalibrationState, IDrsTrigger
 from trigger.baseinterface.exposure import IExposure
 from .localdb import DataCache
 
+CalibrationStateCache = DataCache[ICalibrationState]
+
 
 class RealtimeProcessor:
-    def __init__(self, trigger: IDrsTrigger, calibration_cache: DataCache, tick_interval: float):
+    def __init__(self, trigger: IDrsTrigger, calibration_cache: CalibrationStateCache, tick_interval: float):
         self.trigger = trigger
         self.calibration_cache = calibration_cache
         self.tick_interval = tick_interval
@@ -70,3 +72,5 @@ class RealtimeProcessor:
             if result.get('calibrations_complete'):
                 self.trigger.reset_calibration_state()
             self.calibration_cache.save(self.trigger.calibration_state)
+        else:
+            self.calibration_cache.unlock()
