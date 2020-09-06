@@ -10,7 +10,7 @@ from trigger.baseinterface.drstrigger import IDrsTrigger
 from .apibridge import ApiBridge
 from .localdb import DataCache
 from .manager import RealtimeStateCache, start_realtime
-from .process import CalibrationStateCache, RealtimeProcessor
+from .process import CalibrationStateCache, RealtimeProcessor, init_realtime_process, process_from_queues
 
 
 def load_and_start_realtime(num_processes: int, file_queue: Queue[Path],
@@ -18,9 +18,9 @@ def load_and_start_realtime(num_processes: int, file_queue: Queue[Path],
     loader, trigger = __load_realtime_trigger(config_subdir, steps, trace)
     remote_api = ApiBridge(file_queue, trigger)
     realtime_cache: RealtimeStateCache = DataCache(loader.config_path.joinpath('.drstrigger-realtime.cache'))
-    process_from_queues = partial(__process_from_queues, config_subdir, steps, trace)
-    start_realtime(trigger.find_sequences, remote_api, realtime_cache, process_from_queues, num_processes,
-                   fetch_interval=10, tick_interval=1)
+    process_from_queues_part = partial(__process_from_queues, config_subdir, steps, trace)
+    start_realtime(trigger.find_sequences, remote_api, realtime_cache, init_realtime_process, process_from_queues_part,
+                   num_processes, 10, 1, 1)
 
 
 def __load_realtime_trigger(config_subdir: Optional[str], steps: Optional[Iterable[str]],
@@ -32,8 +32,8 @@ def __load_realtime_trigger(config_subdir: Optional[str], steps: Optional[Iterab
     return loader, trigger
 
 
-def __process_from_queues(config_subdir: Optional[str], steps: Optional[Iterable[str]], trace: Optional[bool], *args):
+def __process_from_queues(config_subdir: Optional[str], steps: Optional[Iterable[str]], trace: Optional[bool]):
     loader, trigger = __load_realtime_trigger(config_subdir, steps, trace)
     calibration_cache: CalibrationStateCache = DataCache(loader.config_path.joinpath('.drstrigger-calib.cache'), True)
-    processor = RealtimeProcessor(trigger, calibration_cache, tick_interval=1)
-    processor.process_from_queues(*args)
+    processor = RealtimeProcessor(trigger, calibration_cache)
+    return process_from_queues(processor)

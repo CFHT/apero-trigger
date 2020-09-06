@@ -28,6 +28,12 @@ class DataCache(Generic[T]):
                     time.sleep(3.0)
             self.lock = SoftFileLock(lockfile)
 
+    def reset(self):
+        try:
+            self.cache_file.unlink()
+        except FileNotFoundError:
+            pass
+
     def load(self) -> T:
         return self.load_cache(self.cache_file, self.lock)
 
