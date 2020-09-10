@@ -1,23 +1,31 @@
 import json
 from collections import defaultdict, OrderedDict
+from typing import Dict, Mapping, List, Union, Tuple, Collection
 from urllib.error import URLError
 from urllib.request import Request, urlopen
 
-from trigger import log
+from astropy.io import fits
 
-keyfile = '/h/spirou/bin/.cfht_access'
+from logger import log
+
+FitsHeaderValue = Union[str, int, float, complex, bool]
+FitsHeaderCard = Union[FitsHeaderValue, Tuple[FitsHeaderValue, str]]
+FitsHeaderDict = Dict[str, FitsHeaderCard]
+JsonObj = Mapping[str, any]
+
+KEY_FILE = '/h/spirou/bin/.cfht_access'
 
 
 class QsoDatabase:
     def __init__(self):
         try:
-            with open(keyfile, 'r') as fileread:
-                self.bearer_token = fileread.read().strip()
-        except:
+            with open(KEY_FILE, 'r') as file_read:
+                self.bearer_token = file_read.read().strip()
+        except OSError:
             log.error('Failed to load API bearer token, will not be able to access database', exc_info=False)
             self.bearer_token = None
 
-    def send_pipeline_headers(self, header_dict, in_progress=False):
+    def send_pipeline_headers(self, header_dict: FitsHeaderDict, in_progress=False):
         if not self.bearer_token:
             log.warning('No bearer token loaded, cannot send values to the database')
             return
@@ -30,15 +38,15 @@ class QsoDatabase:
             url = url + "-in-progress"
         try:
             self.json_request(url, data, retries=2)
-        except:
+        except URLError:
             log.error('Error sending values %s to database', header_dict, exc_info=True)
 
-    def get_exposure(self, obsid):
+    def get_exposure(self, obsid: int) -> JsonObj:
         result = self.get_exposure_range(obsid, obsid)
         if result:
             return result[0]
 
-    def get_exposure_range(self, first, last):
+    def get_exposure_range(self, first: int, last: int) -> List[JsonObj]:
         try:
             return self.get_exposures_status({
                 'obsid_range': {
@@ -49,17 +57,17 @@ class QsoDatabase:
         except URLError:
             log.error('Error fetching exposures for obsid range %s-%s', first, last, exc_info=True)
 
-    def get_exposures_status(self, request_data):
+    def get_exposures_status(self, request_data: JsonObj) -> List[JsonObj]:
         if not self.bearer_token:
             log.warning('No bearer token loaded, cannot fetch values from the database')
-            return None
+            return []
         auth_headers = {'Authorization': 'Bearer ' + self.bearer_token}
         url = 'https://api.cfht.hawaii.edu/op/exposures'
         response_data = self.json_request(url, request_data, headers=auth_headers, retries=2)
         return [exposure['exposure_status'] for exposure in response_data['exposure']]
 
     @staticmethod
-    def json_request(url, data, headers=None, retries=0):
+    def json_request(url: str, data: JsonObj, headers: Mapping[str, str] = None, retries=0) -> JsonObj:
         http_headers = {'Content-Type': 'application/json'}
         if headers:
             http_headers.update(headers)
@@ -77,53 +85,51 @@ class QsoDatabase:
 
 class DatabaseHeaderConverter:
     @staticmethod
-    def preprocessed_header_to_db(header):
+    def preprocessed_header_to_db(header: fits.Header) -> JsonObj:
         return {
             'dprtype': header['DPRTYPE']
         }
 
     @staticmethod
-    def extracted_header_to_db(header):
+    def extracted_header_to_db(header: fits.Header) -> JsonObj:
         return {
             'dprtype': header['DPRTYPE'],
-            'snr10': header['SNR10'],
-            'snr34': header['SNR34'],
-            'snr44': header['SNR44']
+            'snr10': header['EXTSN010'],
+            'snr34': header['EXTSN034'],
+            'snr44': header['EXTSN044']
         }
 
     @staticmethod
-    def ccf_header_to_db(header):
+    def ccf_header_to_db(header: fits.Header) -> JsonObj:
         return {
             'ccfmask': header['CCFMASK'],
-            'ccfmacpp': header['CCFMACP'],
-            'ccfcontr': header['CCFCONT'],
-            'ccfrv': header['CCFRV'],
-            'ccfrvc': header['CCFRVC'],
-            'ccffwhm': header['CCFFWHM']
+            'ccfmacpp': 0,
+            'ccfcontr': header['CCFMCONT'],
+            'ccfrv': header['RV_OBJ'],
+            'ccfrvc': header['RV_CORR'],
+            'ccffwhm': header['CCFMFWHM']
         }
 
     @staticmethod
-    def exp_status_db_to_header(exposure_status):
+    def exp_status_db_to_header(exposure_status: JsonObj) -> FitsHeaderDict:
         return {
             'QSOVALID': (exposure_status['exp_status'], 'QSO validation state'),
             'QSOGRADE': (exposure_status.get('grade'), 'QSO grade (1=good 5=unusable)'),
         }
 
     @classmethod
-    def seq_status_db_to_header(cls, exposure_statuses):
+    def seq_status_db_to_header(cls, exposure_statuses: Collection[JsonObj]) -> FitsHeaderDict:
         per_key = defaultdict(OrderedDict)
         for i, exposure_status in enumerate(exposure_statuses):
-            header_vals = cls.exp_status_db_to_header(exposure_status)
-            for key, value in header_vals.items():
-                new_key = cls.indexed_header_key(key, i + 1)
+            header_cards = cls.exp_status_db_to_header(exposure_status)
+            for key, value in header_cards.items():
+                new_key = cls.indexed_header_key(key, i + 1, len(exposure_statuses))
                 per_key[key][new_key] = value
         combined = {key: value for current in per_key.values() for key, value in current.items()}
         return combined
 
     @staticmethod
-    def indexed_header_key(key, index):
-        # Note: this can still produce keywords over 8 chars if there are more than 9 values
-        if len(key) < 8:
-            return key + str(index)
-        else:
-            return key[:7] + str(index)
+    def indexed_header_key(key: str, index: int, max_index: int) -> str:
+        n_digits = len(str(max_index))
+        n_key_chars = min(8 - n_digits, len(key))
+        return key[:n_key_chars] + str(index)

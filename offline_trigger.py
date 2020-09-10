@@ -2,61 +2,56 @@
 
 import argparse
 
+import logger
 
-def get_base_argument_parser(additional_step_options = None):
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--loglevel', choices=['INFO', 'WARNING', 'ERROR'], default='INFO')
-    parser.add_argument('--logfile', action='append', nargs=2, metavar=('LOGFILE', '{INFO,WARNING,ERROR}'))
 
-    subparsers = parser.add_subparsers(dest='command')
-    subparsers.required = True
-    reduce_parser = argparse.ArgumentParser(add_help=False)
-    reduce_parser.add_argument('--trace', action='store_true', help='Only simulate DRS commands, requires pp files')
-    reduce_parser.add_argument('--ccfmask', type=str, default='masque_sept18_andres_trans50.mas')
-    reduce_parser.add_argument('--ccfv0', type=float, default=0)
-    reduce_parser.add_argument('--ccfrange', type=float, default=200)
-    reduce_parser.add_argument('--ccfstep', type=float, default=1)
-    reduce_parser.add_argument('--runid', nargs='+', help='Only process files belonging to the runid(s)')
-    reduce_parser.add_argument('--target', nargs='+', help='Only process files that are observations of the target(s)')
+def get_base_argument_parsers(additional_step_options=None):
+    parsers = {'parser': argparse.ArgumentParser()}
+    parsers['parser'].add_argument('--loglevel', choices=['INFO', 'WARNING', 'ERROR'], default='INFO')
+    parsers['parser'].add_argument('--logfile', action='append', nargs=2, metavar=('LOGFILE', '{INFO,WARNING,ERROR}'))
 
-    steps_options = ['preprocess', 'ppcal', 'ppobj',
-                     'calibrations', 'dark', 'badpix', 'loc', 'slit', 'shape', 'ff', 'wave',
-                     'objects', 'extract', 'pol', 'fittellu', 'mktemplate' 'ccf', 'products', 'mktellu']
+    parsers['command'] = parsers['parser'].add_subparsers(dest='command')
+    parsers['command'].required = True
+    parsers['reduce'] = argparse.ArgumentParser(add_help=False)
+    parsers['reduce'].add_argument('--trace', action='store_true', help='Only simulate DRS commands, requires pp files')
+    parsers['reduce'].add_argument('--runid', nargs='+', help='Only process observations belonging to the runid(s)')
+    parsers['reduce'].add_argument('--target', nargs='+', help='Only process observations of the target(s)')
+
+    parsers['steps'] = ['preprocess', 'ppcal', 'ppobj',
+                        'calibrations', 'badpix', 'loc', 'shape', 'flat', 'thermal', 'wave',
+                        'objects', 'snronly', 'extract', 'leak', 'fittellu', 'ccf', 'pol', 'products']
     if additional_step_options:
-        steps_options.extend(additional_step_options)
-    reduce_parser.add_argument('--steps', nargs='+', choices=steps_options)
+        parsers['steps'].extend(additional_step_options)
+    parsers['reduce'].add_argument('--steps', nargs='+', choices=parsers['steps'])
 
-    multi_night_parser = argparse.ArgumentParser(parents=[reduce_parser], add_help=False)
-    multi_night_parser.add_argument('--parallel', type=int, help='If used, number of parallel processes to run')
-    subparsers.add_parser('all', parents=[multi_night_parser], help='Reduce all nights')
-    reduce_qrun_parser = subparsers.add_parser('qrunid', parents=[multi_night_parser],
-                                               help='Reduce all nights belonging to qrunid')
-    reduce_qrun_parser.add_argument('qrunid')
+    parsers['multinight'] = argparse.ArgumentParser(parents=[parsers['reduce']], add_help=False)
+    parsers['multinight'].add_argument('--parallel', type=int, help='If used, number of parallel processes to run')
+    parsers['command'].add_parser('all', parents=[parsers['multinight']], help='Reduce all nights')
+    parsers['qrunid'] = parsers['command'].add_parser('qrunid', parents=[parsers['multinight']],
+                                                      help='Reduce all nights belonging to qrunid')
+    parsers['qrunid'].add_argument('qrunid')
 
-    single_night_parser = argparse.ArgumentParser(parents=[reduce_parser], add_help=False)
-    single_night_parser.add_argument('night')
-    subparsers.add_parser('night', parents=[single_night_parser], help='Reduce a night directory')
-    reduce_subset_parser = subparsers.add_parser('subset', parents=[single_night_parser], help='Reduce part of night')
-    reduce_subset_flags = reduce_subset_parser.add_mutually_exclusive_group(required=True)
-    reduce_subset_flags.add_argument('--range', nargs=2, help='Files at start and end of range')
-    reduce_subset_flags.add_argument('--list', nargs='+', help='Specific list of files')
-    reduce_file_parse = subparsers.add_parser('file', parents=[single_night_parser], help='Reduce a single file')
-    reduce_file_parse.add_argument('filename')
-    reduce_sequence_parse = subparsers.add_parser('sequence', parents=[single_night_parser],
-                                                  help='Reduce a sequence of files together')
-    reduce_sequence_parse.add_argument('filenames', nargs='+')
-    subparsers.add_parser('telludb', parents=[multi_night_parser], help='Process telluric standards across all nights')
-    subparsers.add_parser('retellu', parents=[multi_night_parser], help='Update existing telludb from all nights')
-    return parser, subparsers
+    parsers['night'] = argparse.ArgumentParser(parents=[parsers['reduce']], add_help=False)
+    parsers['night'].add_argument('night')
+    parsers['command'].add_parser('night', parents=[parsers['night']], help='Reduce a night directory')
+    parsers['subset'] = parsers['command'].add_parser('subset', parents=[parsers['night']], help='Reduce part of night')
+    parsers['subset args'] = parsers['subset'].add_mutually_exclusive_group(required=True)
+    parsers['subset args'].add_argument('--range', nargs=2, help='Files at start and end of range')
+    parsers['subset args'].add_argument('--list', nargs='+', help='Specific list of files')
+    parsers['file'] = parsers['command'].add_parser('file', parents=[parsers['night']], help='Reduce a single file')
+    parsers['file'].add_argument('filename')
+    parsers['sequence'] = parsers['command'].add_parser('sequence', parents=[parsers['night']],
+                                                        help='Reduce a sequence of files together')
+    parsers['sequence'].add_argument('filenames', nargs='+')
+    return parsers
 
 
-def reduce_execute(args, drs_class, steps_class, filters_class, ccf_params_class):
-    ccf_params = ccf_params_class(args.ccfmask, args.ccfv0, args.ccfrange, args.ccfstep)
+def reduce_execute(args, drs_class, steps_class, filters_class):
     if args.steps:
         steps = steps_class.from_keys(args.steps)
     else:
         steps = steps_class.all()
-    trigger = drs_class(steps, ccf_params=ccf_params, trace=args.trace)
+    trigger = drs_class(steps, trace=args.trace)
     filters = filters_class(runids=args.runid, targets=args.target)
     if args.command == 'all':
         trigger.reduce_all_nights(filters=filters, num_processes=args.parallel)
@@ -66,41 +61,30 @@ def reduce_execute(args, drs_class, steps_class, filters_class, ccf_params_class
         trigger.reduce_night(args.night, filters=filters)
     elif args.command == 'subset':
         if args.list:
-            trigger.reduce(args.night, args.list)
+            trigger.reduce([trigger.exposure(args.night, filename) for filename in args.list])
         elif args.range:
             trigger.reduce_range(args.night, args.range[0], args.range[1], filters=filters)
     elif args.command == 'file':
-        if trigger.preprocess(args.night, args.filename):
-            trigger.process_file(args.night, args.filename)
+        exposure = trigger.exposure(args.night, args.filename)
+        if trigger.preprocess(exposure):
+            trigger.process_file(exposure)
     elif args.command == 'sequence':
-        trigger.process_sequence(args.night, args.filenames)
-    elif args.command == 'telludb':
-        if args.steps and len(set(args.steps) - {'mktellu'}) > 0:
-            filters = filters_class.telluric_standards()
-            trigger.reduce_all_nights(filters=filters, num_processes=args.parallel)
-        if not args.steps or 'mktellu' in args.steps:
-            trigger.mk_tellu()
-    elif args.command == 'retellu':
-        if not args.steps or 'fittellu' in args.steps:
-            trigger = drs_class(steps_class.from_keys(['fittellu']), ccf_params=ccf_params, trace=args.trace)
-            trigger.reduce_all_nights(filters=filters, num_processes=args.parallel)
-        if not args.steps or 'mktemplate' in args.steps:
-            filters = filters_class(unique_targets=True)
-            trigger = drs_class(steps_class.from_keys(['mktemplate']), ccf_params=ccf_params, trace=args.trace)
-            trigger.reduce_all_nights(filters=filters, num_processes=args.parallel)
+        trigger.process_sequence([trigger.exposure(args.night, filename) for filename in args.filenames])
 
 
 if __name__ == '__main__':
-    from trigger import DrsTrigger, DrsSteps, FileSelectionFilters, CcfParams, logger
+    from trigger.common import DrsSteps
+    from trigger.drstrigger import DrsTrigger
+    from trigger.fileselector import FileSelectionFilters
 
-    parser, subparsers = get_base_argument_parser()
-    subparsers.add_parser('version', help='DRS version information')
+    parsers = get_base_argument_parsers()
+    parsers['command'].add_parser('version', help='DRS version information')
 
-    args = parser.parse_args()
+    args = parsers['parser'].parse_args()
 
     logger.configure_logger(console_level=args.loglevel, log_files=args.logfile)
 
     if args.command == 'version':
         print(DrsTrigger.drs_version())
     else:
-        reduce_execute(args, DrsTrigger, DrsSteps, FileSelectionFilters, CcfParams)
+        reduce_execute(args, DrsTrigger, DrsSteps, FileSelectionFilters)

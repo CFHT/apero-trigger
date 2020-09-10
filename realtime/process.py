@@ -1,23 +1,72 @@
+from __future__ import annotations
+
 import queue
 import time
-from pathlib import Path
+from multiprocessing import Event, Queue, current_process
+from typing import Optional, Sequence
 
 from logger import log
+from trigger.baseinterface.drstrigger import ICalibrationState, IDrsTrigger
+from trigger.baseinterface.exposure import IExposure
+from .localdb import DataCache
+from .typing import BlockingParams, ExposureQueue, IRealtimeProcessor, InitProcess, ProcessFromQueues, SequenceQueue
+
+CalibrationStateCache = DataCache[ICalibrationState]
 
 
-class RealtimeProcessor:
-    def __init__(self, trigger, session_root, calibration_cache, tick_interval):
+def init_realtime_process(retry_interval: float, stop_signal: Event,
+                          exposure_queue: ExposureQueue, sequence_queue: SequenceQueue,
+                          exposures_done: ExposureQueue, sequences_done: SequenceQueue):
+    global exposure_queue_global
+    global sequence_queue_global
+    global exposures_done_global
+    global sequences_done_global
+    global blocking_params_global
+    exposure_queue_global = exposure_queue
+    sequence_queue_global = sequence_queue
+    exposures_done_global = exposures_done
+    sequences_done_global = sequences_done
+    blocking_params_global = BlockingParams(retry_interval, stop_signal)
+    log.info('Started process %i', current_process().pid)
+
+
+def process_from_queues(realtime_processor) -> bool:
+    realtime_processor.process_id = current_process().pid
+    return realtime_processor.process_next_from_queue(exposure_queue_global, sequence_queue_global,
+                                                      exposures_done_global, sequences_done_global,
+                                                      blocking_params_global)
+
+
+# Just here for static typechecking, calling this is pointless
+# Doesn't really seem to work in PyCharm... maybe try MyPy?
+def __typechecking():
+    init_process_check: InitProcess = init_realtime_process
+    process_from_queues_check: ProcessFromQueues = process_from_queues
+    assert init_process_check == init_realtime_process
+    assert process_from_queues_check == process_from_queues
+
+
+class RealtimeProcessor(IRealtimeProcessor):
+    def __init__(self, trigger: IDrsTrigger, calibration_cache: CalibrationStateCache):
+        super().__init__()
         self.trigger = trigger
-        self.session_root = session_root
         self.calibration_cache = calibration_cache
-        self.tick_interval = tick_interval
 
-    def process_from_queues(self, exposure_queue, sequence_queue, exposures_done, sequences_done):
-        while True:
-            self.process_next_from_queue(exposure_queue, sequence_queue, exposures_done, sequences_done)
-            time.sleep(self.tick_interval)
+    def process_next_from_queue(self, exposure_queue: Queue[IExposure], sequence_queue: Queue[Sequence[IExposure]],
+                                exposures_done: Queue[IExposure], sequences_done: Queue[Sequence[IExposure]],
+                                block: Optional[BlockingParams] = None) -> bool:
+        if block:
+            while not block.stop_signal.is_set():
+                result = self.__process_next_from_queue(exposure_queue, sequence_queue, exposures_done, sequences_done)
+                if result:
+                    return result
+                time.sleep(block.retry_interval)
+            return False
+        else:
+            return self.__process_next_from_queue(exposure_queue, sequence_queue, exposures_done, sequences_done)
 
-    def process_next_from_queue(self, exposure_queue, sequence_queue, exposures_done, sequences_done):
+    def __process_next_from_queue(self, exposure_queue: Queue[IExposure], sequence_queue: Queue[Sequence[IExposure]],
+                                  exposures_done: Queue[IExposure], sequences_done: Queue[Sequence[IExposure]]) -> bool:
         try:
             sequence = sequence_queue.get(block=False)
         except queue.Empty:
@@ -26,56 +75,38 @@ class RealtimeProcessor:
             except queue.Empty:
                 pass
             else:
-                log.info('Processing %s', exposure)
+                log.info('Process %i processing %s', self.process_id, exposure)
                 try:
                     self.__process_exposure(exposure)
                 except:
                     log.error('An error occurred while processing %s', exposure, exc_info=True)
                 exposures_done.put(exposure)
+                return True
         else:
-            log.info('Processing %s', sequence)
+            log.info('Process %i processing %s', self.process_id, sequence)
             try:
                 self.__process_sequence(sequence)
             except:
                 log.error('An error occurred while processing %s', sequence, exc_info=True)
             sequences_done.put(sequence)
+            return True
+        return False
 
-    def __process_exposure(self, exposure):
-        night, file = self.__setup_symlink(exposure)
-        if not self.trigger.preprocess(night, file):
-            return
-        self.trigger.process_file(night, file)
+    def __process_exposure(self, exposure: IExposure):
+        if self.trigger.preprocess(exposure):
+            self.trigger.process_file(exposure)
 
-    def __process_sequence(self, sequence):
-        nights_and_files = [self.__night_and_file_from_session_path(exposure) for exposure in sequence]
-        nights, files = zip(*nights_and_files)
-        if len(set(nights)) > 1:
-            log.error('Exposure sequence split across multiple nights: %s', sequence)
+    def __process_sequence(self, sequence: Sequence[IExposure]):
+        try:
+            self.trigger.calibration_state = self.calibration_cache.load()
+        except (OSError, IOError):
+            log.warning('Calibration state file %s not found. This should only appear the first time realtime is run.',
+                        self.calibration_cache.cache_file)
+        result = self.trigger.process_sequence(sequence)
+        # We only save the calibration state if the sequence was a calibration sequence.
+        if result and 'calibrations_complete' in result:
+            if result.get('calibrations_complete'):
+                self.trigger.reset_calibration_state()
+            self.calibration_cache.save(self.trigger.calibration_state)
         else:
-            try:
-                self.trigger.processor.calibration_processor.state = self.calibration_cache.load()
-            except (OSError, IOError):
-                log.warning('No calibration state file found. This should only appear the first time realtime is run.')
-            result = self.trigger.process_sequence(nights[0], files)
-            # We only save the calibration state if the sequence was a calibration sequence.
-            if result and 'calibrations_complete' in result:
-                self.calibration_cache.save(self.trigger.processor.calibration_processor.state)
-
-    def __setup_symlink(self, session_path):
-        night, filename = self.__night_and_file_from_session_path(session_path)
-        link_path = self.trigger.Exposure(night, filename).raw
-        link_path.parent.mkdir(parents=True, exist_ok=True)
-        try:
-            link_path.symlink_to(session_path)
-        except FileExistsError as e:
-            pass
-        return night, filename
-
-    def __night_and_file_from_session_path(self, session_path):
-        try:
-            relative_path = Path(session_path).relative_to(self.session_root)
-        except ValueError:
-            raise RuntimeError('Night directory should start with ' + self.session_root)
-        night = relative_path.parent.name
-        filename = relative_path.name
-        return night, filename
+            self.calibration_cache.unlock()

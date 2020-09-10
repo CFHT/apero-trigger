@@ -1,41 +1,39 @@
-from multiprocessing import Event
+from __future__ import annotations
+
+from functools import partial
+from multiprocessing import Queue
+from pathlib import Path
+from typing import Iterable, Optional, Tuple
 
 from drsloader import DrsLoader
-from .localdb import CalibrationStateCache, RealtimeStateCache
-from .process import RealtimeProcessor
-from .starter import start_realtime as start_realtime_general
+from trigger.baseinterface.drstrigger import IDrsTrigger
+from .apibridge import ApiBridge
+from .localdb import DataCache
+from .manager import RealtimeStateCache, start_realtime
+from .process import CalibrationStateCache, RealtimeProcessor, init_realtime_process, process_from_queues
 
 
-def start_realtime(num_processes, file_queue):
-    trigger = load_realtime_trigger()
-    remote_api = ApiBridge(file_queue)
-    realtime_cache = RealtimeStateCache()
-    start_realtime_general(trigger.find_sequences, remote_api, realtime_cache, process_from_queues, num_processes,
-                           fetch_interval=10, tick_interval=1, exit_event=Event())
+def load_and_start_realtime(num_processes: int, file_queue: Queue[Path],
+                            config_subdir: Optional[str], steps: Optional[Iterable[str]], trace: Optional[bool]):
+    loader, trigger = __load_realtime_trigger(config_subdir, steps, trace)
+    remote_api = ApiBridge(file_queue, trigger)
+    realtime_cache: RealtimeStateCache = DataCache(loader.config_path.joinpath('.drstrigger-realtime.cache'))
+    process_from_queues_part = partial(__process_from_queues, config_subdir, steps, trace)
+    start_realtime(trigger.find_sequences, remote_api, realtime_cache, init_realtime_process, process_from_queues_part,
+                   num_processes, 10, 1, 1)
 
 
-def load_realtime_trigger():
-    DrsLoader.set_drs_config_subdir('realtime')
-    loader = DrsLoader()
+def __load_realtime_trigger(config_subdir: Optional[str], steps: Optional[Iterable[str]],
+                            trace: Optional[bool]) -> Tuple[DrsLoader, IDrsTrigger]:
+    loader = DrsLoader(config_subdir)
     cfht = loader.get_loaded_trigger_module()
-    ccf_params = cfht.CcfParams('masque_sept18_andres_trans50.mas', 0, 200, 1)
-    trigger = cfht.CfhtRealtimeTrigger(ccf_params)
-    return trigger
+    steps = cfht.CfhtDrsSteps.all() if steps is None else cfht.CfhtDrsSteps.from_keys(steps)
+    trigger = cfht.CfhtRealtimeTrigger(steps, trace)
+    return loader, trigger
 
 
-def process_from_queues(exposure_queue, sequence_queue, exposures_done, sequences_done):
-    trigger = load_realtime_trigger()
-    calibration_cache = CalibrationStateCache()
-    processor = RealtimeProcessor(trigger, DrsLoader.SESSION_DIR, calibration_cache, tick_interval=1)
-    processor.process_from_queues(exposure_queue, sequence_queue, exposures_done, sequences_done)
-
-
-class ApiBridge:
-    def __init__(self, file_queue):
-        self.queue = file_queue
-
-    def get_new_exposures(self, cursor):
-        files = []
-        while not self.queue.empty():
-            files.append(self.queue.get(block=False))
-        return files
+def __process_from_queues(config_subdir: Optional[str], steps: Optional[Iterable[str]], trace: Optional[bool]):
+    loader, trigger = __load_realtime_trigger(config_subdir, steps, trace)
+    calibration_cache: CalibrationStateCache = DataCache(loader.config_path.joinpath('.drstrigger-calib.cache'), True)
+    processor = RealtimeProcessor(trigger, calibration_cache)
+    return process_from_queues(processor)
