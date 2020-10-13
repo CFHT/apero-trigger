@@ -298,6 +298,7 @@ def product_header_update(hdu_list: fits.HDUList):
     primary_header = hdu_list[0].header
     fits_op.remove_keys(primary_header, ('BITPIX', 'NAXIS', 'NAXIS1', 'NAXIS2'))
     primary_header.insert('PVERSION', fits_op.get_card(hdu_list[1].header, 'VERSION'), after=True)
+    primary_header.insert('DRSVDATE', fits_op.get_card(hdu_list[1].header, 'DRSPDATE'), after=True)
     ext_names = []
     for extension in hdu_list[1:]:
         ext_header = extension.header
