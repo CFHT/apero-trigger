@@ -2,14 +2,14 @@
 This project contains auxiliary functionality for the APERO pipeline.
 
 ## Overview:
-####1. High-level reduction control tool
+#### 1. High-level reduction control tool
 Note: the reduction portion of this tool has largely been superseded
 by the `apero_processing.py` tool included with APERO.
-####2. Creating packaged data products from reduced files
+#### 2. Creating packaged data products from reduced files
 This includes the e.fits, s.fits, t.fits, v.fits, p.fits files.
-####3. Hooks into observatory-specific interfaces
+#### 3. Hooks into observatory-specific interfaces
 Examples include database read/write interfaces and custom error handling.
-####4. Realtime data reduction
+#### 4. Realtime data reduction
 
 ## Running:
 Items 1 and 2 are available through the `offline_trigger.py`. Items 3 and 4 required `full_trigger.py`.
@@ -34,6 +34,10 @@ On the other hand, to run the realtime reduction trigger, the dependencies in `r
 pip install -r requirements.txt
 ```
 
+Optionally, the trigger can use the [SPIRou-Polarimetry](https://github.com/edermartioli/spirou-polarimetry)
+module to create p.fits polar products. This is currently supported through the
+[CFHT fork](https://github.com/CFHT/spirou-polarimetry/tree/cfht) of the project.
+Place the `spirou-polarimetry` directory alongside the `apero-drs` directory for the trigger to detect it.
 
 ## Development:
 To contribute to the development of the trigger, installing pytest is useful be able to create and/or run tests.

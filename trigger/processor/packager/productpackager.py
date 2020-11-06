@@ -286,7 +286,7 @@ def product_header_update(hdu_list: fits.HDUList):
     """
     Puts the finishing touches on the product header, which currently consists of:
     1. Removing data dimension keys from primary header
-    2. Copying VERSION key from first extension to primary header
+    2. Copying VERSION and DRSPDATE keys from first extension to primary header
     3. For p.fits copying EXPTIME/MJDATE from Pol extension to primary header
     4. For non-calibration non-Err extensions, removing cards which duplicates from the primary header.
     5. Adding a COMMENT to the primary header listing the EXTNAME of each extension.
