@@ -17,6 +17,8 @@ class ObjectProcessor:
         if object_config.object_type == ObjectType.OBJ_FP:
             if ObjectStep.LEAK in self.steps:
                 self.drs.cal_leak(exposure)
+        if ObjectStep.PRODUCTS in self.steps and not self.drs.trace:
+            packager.create_2d_spectra_product(exposure)
         if object_config.target == TargetType.STAR:
             is_telluric_corrected = self.__telluric_correction(exposure)
             is_ccf_calculated, ccf_path = self.__ccf(exposure, is_telluric_corrected)
@@ -55,8 +57,6 @@ class ObjectProcessor:
             return exposure.q2ds(Fiber.AB)
         if ObjectStep.EXTRACT in self.steps:
             self.drs.cal_extract(exposure)
-        if ObjectStep.PRODUCTS in self.steps and not self.drs.trace:
-            packager.create_2d_spectra_product(exposure)
         return exposure.e2ds(Fiber.AB)
 
     def __telluric_correction(self, exposure: Exposure) -> bool:
@@ -82,9 +82,5 @@ class ObjectProcessor:
         if len(exposures) < 2:
             return {'is_polar_done': False}
         if ObjectStep.POL in self.steps:
-            # Note: if the telluric correction previously succeeded but failed this time, this will use old files
-            telluric_corrected = all(exposure.e2ds(Fiber.AB, TelluSuffix.TCORR).exists() for exposure in exposures)
-            self.drs.pol(exposures, telluric_corrected)
-        if ObjectStep.PRODUCTS in self.steps and not self.drs.trace:
-            packager.create_pol_product(exposures[0])
+            self.drs.pol(exposures)
         return {'is_polar_done': True}

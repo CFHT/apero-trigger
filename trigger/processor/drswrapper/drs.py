@@ -2,12 +2,25 @@ from typing import Sequence
 
 from apero.recipes.spirou import cal_badpix_spirou, cal_ccf_spirou, cal_extract_spirou, cal_flat_spirou, \
     cal_leak_spirou, cal_loc_spirou, cal_preprocess_spirou, cal_shape_spirou, cal_thermal_spirou, \
-    cal_wave_night_spirou, obj_fit_tellu_spirou, pol_spirou
+    cal_wave_night_spirou, obj_fit_tellu_spirou
 
 from .reciperunner import RecipeRunner
 from ...baseinterface.processor import IErrorHandler
 from ...common.drsconstants import Fiber
 from ...common.pathhandler import Exposure, TelluSuffix
+
+try:
+    import sys
+    from pathlib import Path
+    from apero.core import constants
+    from logger import log
+    config = constants.load('SPIROU')
+    polar_root = Path(config['DRS_ROOT']).parent.parent.joinpath('spirou-polarimetry')
+    sys.path.append(str(polar_root))
+    import spirou_pol
+except ModuleNotFoundError:
+    spirou_pol = None
+    log.warning('Failed to import spirou_pol, polarimetry recipe will not be able to run')
 
 
 class DRS:
@@ -103,17 +116,15 @@ class DRS:
         file = exposure.e2ds(Fiber.AB, TelluSuffix.tcorr(telluric_corrected)).name
         return self.runner.run(cal_ccf_spirou, exposure.night, file)
 
-    def pol(self, exposures: Sequence[Exposure], telluric_corrected=True) -> bool:
+    def pol(self, exposures: Sequence[Exposure]) -> bool:
         """
         :param exposures OBJ_* sequence that has been extracted
-        :param telluric_corrected: Whether to use telluric corrected e2ds
         :return: Whether the recipe completed successfully
         """
-        # Manually override this, since no telluric corrected A/B are being created yet.
-        telluric_corrected = False
-        input_files = [exposure.e2ds(fiber, TelluSuffix.tcorr(telluric_corrected)).name
-                       for exposure in exposures for fiber in (Fiber.A, Fiber.B)]
-        return self.runner.run(pol_spirou, exposures[0].night, input_files)
+        if spirou_pol is None:
+            return False
+        input_files = (str(exposure.final_product('e')) for exposure in exposures)
+        return self.runner.run(spirou_pol, *input_files, output=str(exposures[0].final_product('p')))
 
     def __run_sequence(self, module, exposures: Sequence[Exposure]) -> bool:
         return self.runner.run(module, exposures[0].night, [exposure.preprocessed.name for exposure in exposures])
