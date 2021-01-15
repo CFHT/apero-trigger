@@ -16,7 +16,7 @@ else
   quicklook)
     activate_env "$1"
     steps="preprocess calibrations extract leak fittellu ccf products distribute"
-    /data/spirou/apero/trigger/full_trigger.py realtime --processes 6 --steps ${steps}
+    /data/spirou/apero/trigger/full_trigger.py realtime --processes 8 --steps ${steps}
     ;;
   snr)
     activate_env "$1"
