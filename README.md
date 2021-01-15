@@ -36,7 +36,7 @@ pip install -r requirements.txt
 
 Optionally, the trigger can use the [SPIRou-Polarimetry](https://github.com/edermartioli/spirou-polarimetry)
 module to create p.fits polar products. This is currently supported through the
-[CFHT fork](https://github.com/CFHT/spirou-polarimetry/tree/cfht) of the project.
+[cfht-trigger-compatibility branch](https://github.com/edermartioli/spirou-polarimetry/tree/cfht-trigger-compatibility).
 Place the `spirou-polarimetry` directory alongside the `apero-drs` directory for the trigger to detect it.
 
 ## Development:
