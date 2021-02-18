@@ -8,7 +8,7 @@ from offline_trigger import get_base_argument_parsers, reduce_execute
 from realtime import load_and_start_realtime, run_listener
 
 if __name__ == '__main__':
-    parsers = get_base_argument_parsers(additional_step_options=['distribute', 'database', 'distraw'])
+    parsers = get_base_argument_parsers(additional_step_options=['distribute', 'database', 'distraw', 'distql'])
     parsers['parser'].add_argument('--config', help='Use custom DRS config directory')
     version_parse = parsers['command'].add_parser('version', help='DRS version information')
     version_flags = version_parse.add_mutually_exclusive_group(required=False)

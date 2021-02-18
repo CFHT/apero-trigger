@@ -42,15 +42,15 @@ def distribute_raw_file(path: Path, nonblocking=True) -> Path:
 
 
 class ProductDistributorFactory:
-    def __init__(self, realtime: bool, distribute: bool):
-        self.realtime = realtime
+    def __init__(self, quicklook: bool, distribute: bool):
+        self.quicklook = quicklook
         self.distribute = distribute
 
     def get_exposure_distributor(self, exposure_status):
-        return ExposureProductDistributor(self.distribute, self.realtime, exposure_status)
+        return ExposureProductDistributor(self.distribute, self.quicklook, exposure_status)
 
     def get_sequence_distributor(self, exposure_statuses):
-        return SequenceProductDistributor(self.distribute, self.realtime, exposure_statuses)
+        return SequenceProductDistributor(self.distribute, self.quicklook, exposure_statuses)
 
 
 class ProductDistributor:

@@ -26,8 +26,12 @@ class CfhtHandler(ICustomHandler):
         self.director_warnings = realtime
         self.updating_database = CfhtStep.DATABASE in steps and not trace
         self.distributing_raw = CfhtStep.DISTRAW in steps and not trace
-        distributing_products = CfhtStep.DISTRIBUTE in steps and not trace
-        self.distributor_factory = ProductDistributorFactory(realtime, distributing_products)
+        distribute = CfhtStep.DISTRIBUTE in steps
+        distql = CfhtStep.DISTQL in steps
+        if distribute and distql:
+            log.warning("Should not run with both distribute and distql, defaulting to distql.")
+        distributing_products = (distribute or distql) and not trace
+        self.distributor_factory = ProductDistributorFactory(distql or realtime, distributing_products)
         self.database = QsoDatabase() if distributing_products or self.updating_database else None
         self.realtime = realtime
 
