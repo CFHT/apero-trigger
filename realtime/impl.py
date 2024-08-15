@@ -3,37 +3,26 @@ from __future__ import annotations
 from functools import partial
 from multiprocessing import Queue
 from pathlib import Path
-from typing import Iterable, Optional, Tuple
+from typing import Optional
 
-from drsloader import DrsLoader
-from trigger.baseinterface.drstrigger import IDrsTrigger
+from trigger import CfhtTrigger
 from .apibridge import ApiBridge
 from .localdb import DataCache
 from .manager import RealtimeStateCache, start_realtime
-from .process import CalibrationStateCache, RealtimeProcessor, init_realtime_process, process_from_queues
+from .process import RealtimeProcessor, init_realtime_process, process_from_queues
 
 
 def load_and_start_realtime(num_processes: int, file_queue: Queue[Path],
-                            config_subdir: Optional[str], steps: Optional[Iterable[str]], trace: Optional[bool]):
-    loader, trigger = __load_realtime_trigger(config_subdir, steps, trace)
+                            trace: Optional[bool]):
+    trigger = CfhtTrigger(trace)
     remote_api = ApiBridge(file_queue, trigger)
-    realtime_cache: RealtimeStateCache = DataCache(loader.config_path.joinpath('.drstrigger-realtime.cache'))
-    process_from_queues_part = partial(__process_from_queues, config_subdir, steps, trace)
-    start_realtime(trigger.find_sequences, remote_api, realtime_cache, init_realtime_process, process_from_queues_part,
+    realtime_cache: RealtimeStateCache = DataCache(Path('.drstrigger-realtime.cache'))
+    process_from_queues_part = partial(__process_from_queues, trace)
+    start_realtime(remote_api, realtime_cache, init_realtime_process, process_from_queues_part,
                    num_processes, 10, 1, 1)
 
 
-def __load_realtime_trigger(config_subdir: Optional[str], steps: Optional[Iterable[str]],
-                            trace: Optional[bool]) -> Tuple[DrsLoader, IDrsTrigger]:
-    loader = DrsLoader(config_subdir)
-    cfht = loader.get_loaded_trigger_module()
-    steps = cfht.CfhtDrsSteps.all() if steps is None else cfht.CfhtDrsSteps.from_keys(steps)
-    trigger = cfht.CfhtRealtimeTrigger(steps, trace)
-    return loader, trigger
-
-
-def __process_from_queues(config_subdir: Optional[str], steps: Optional[Iterable[str]], trace: Optional[bool]):
-    loader, trigger = __load_realtime_trigger(config_subdir, steps, trace)
-    calibration_cache: CalibrationStateCache = DataCache(loader.config_path.joinpath('.drstrigger-calib.cache'), True)
-    processor = RealtimeProcessor(trigger, calibration_cache)
+def __process_from_queues(trace: Optional[bool]):
+    trigger = CfhtTrigger(trace)
+    processor = RealtimeProcessor(trigger)
     return process_from_queues(processor)

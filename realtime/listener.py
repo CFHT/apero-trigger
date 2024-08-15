@@ -1,12 +1,13 @@
 from __future__ import annotations
 
-from multiprocessing import Queue
+from multiprocessing import Queue, Process
 from pathlib import Path
 
 import cherrypy
 from flask import Flask, request
 
 from logger import log
+from trigger import CfhtTrigger
 
 
 def run_listener(port: int) -> Queue[Path]:
@@ -17,11 +18,22 @@ def run_listener(port: int) -> Queue[Path]:
     def status_check():
         return '{"success": true}', 200
 
-    @app.route('/trigger', methods=['POST'])
+    @app.route('/file', methods=['POST'])
     def realtime_trigger():
         filename = request.args.get('filename')
         try:
             file_queue.put(Path(filename))
+            return '{"success": true}', 200
+        except Exception:
+            return '{"success": false}', 500
+
+    @app.route('/calibrations', methods=['POST'])
+    def process_calibrations():
+        night = request.args.get('night')
+        try:
+            trigger = CfhtTrigger()
+            p = Process(target=trigger.process_calibrations, args=(night,))
+            p.start()
             return '{"success": true}', 200
         except Exception:
             return '{"success": false}', 500

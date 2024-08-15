@@ -1,11 +1,9 @@
 from __future__ import annotations
 
-from enum import Enum
 from pathlib import Path
 from typing import Optional
 
-from .drsconstants import CcfParams, Fiber, RootDataDirectories
-from ..baseinterface.exposure import IExposure
+from .drsconstants import Fiber, RootDataDirectories
 
 
 class Night:
@@ -32,24 +30,7 @@ class Night:
         return RootDataDirectories.reduced.joinpath(self.night)
 
 
-class SampleSpace(Enum):
-    VELOCITY = 'v'
-    WAVELENGTH = 'w'
-
-
-class TelluSuffix(Enum):
-    NONE = ''
-    TCORR = '_tcorr'
-    RECON = '_recon'
-
-    @staticmethod
-    def tcorr(tellu_corrected: bool) -> TelluSuffix:
-        if tellu_corrected:
-            return TelluSuffix.TCORR
-        return TelluSuffix.NONE
-
-
-class Exposure(IExposure):
+class Exposure:
     """
     Class representing a single input file and corresponding output files.
     """
@@ -61,6 +42,18 @@ class Exposure(IExposure):
         """
         self.__night = Night(night)
         self.__raw_filename = Path(raw_file).name
+
+    def __repr__(self):
+        return str(self.raw)
+
+    def __str__(self):
+        return str(self.raw)
+
+    def __eq__(self, other):
+        return (self.night, self.raw.name) == (other.night, other.raw.name)
+
+    def __hash__(self):
+        return hash((self.night, self.raw.name))
 
     @property
     def night(self) -> str:
@@ -74,35 +67,12 @@ class Exposure(IExposure):
     def preprocessed(self) -> Path:
         return Path(self.temp_directory, self.raw.name.replace('.fits', '_pp.fits'))
 
-    def s1d(self, sample_space: SampleSpace, fiber: Fiber, tellu_suffix=TelluSuffix.NONE) -> Path:
-        product_name = 's1d_' + sample_space.value
-        return self.__extracted_product(product_name, fiber, tellu_suffix)
-
-    def e2ds(self, fiber: Fiber, tellu_suffix=TelluSuffix.NONE, flat_fielded=True, suffix=None) -> Path:
-        product_name = 'e2dsff' if flat_fielded else 'e2ds'
-        return self.__extracted_product(product_name, fiber, tellu_suffix, suffix)
-
     def q2ds(self, fiber: Fiber, flat_fielded=True) -> Path:
         product_name = 'q2dsff' if flat_fielded else 'q2ds'
-        return self.__extracted_product(product_name, fiber, TelluSuffix.NONE)
-
-    def ccf(self, fiber=Fiber.AB, tellu_suffix=TelluSuffix.TCORR) -> Path:
-        suffix = CcfParams.mask.replace('.mas', '') + '_' + fiber.value
-        return self.e2ds(Fiber.AB, tellu_suffix, suffix='ccf_' + suffix)
-
-    def __extracted_product(self, product: str, fiber: Fiber, tellu_suffix: TelluSuffix, suffix: str = None) -> Path:
-        return self.__extracted_product_general(product + tellu_suffix.value, fiber, suffix)
-
-    def __extracted_product_general(self, product: str, fiber: Fiber, suffix: str) -> Path:
-        if suffix:
-            return self.reduced(product + '_' + fiber.value + '_' + suffix)
-        return self.reduced(product + '_' + fiber.value)
+        return self.reduced(product_name + '_' + fiber.value)
 
     def reduced(self, product: str) -> Path:
         return Path(self.reduced_directory, self.preprocessed.name.replace('.fits', '_' + product + '.fits'))
-
-    def final_product(self, letter: str) -> Path:
-        return Path(self.reduced_directory, self.raw.name.replace('o.fits', letter + '.fits'))
 
     @property
     def input_directory(self) -> Path:

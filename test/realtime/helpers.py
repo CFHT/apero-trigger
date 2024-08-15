@@ -9,8 +9,7 @@ from unittest import mock
 
 from realtime.manager import IExposureApi, start_realtime
 from realtime.process import init_realtime_process, process_from_queues
-from trigger.baseinterface.drstrigger import IDrsTrigger
-from trigger.baseinterface.exposure import IExposure
+from trigger.common.pathhandler import Exposure
 
 
 class MockApi(IExposureApi):
@@ -62,7 +61,7 @@ def last_index(iterable, value):
     return len(iterable) - 1 - iterable[::-1].index(value)
 
 
-class MockExposure(IExposure):
+class MockExposure(Exposure):
     def __init__(self, root_dir, night, raw_file):
         self.root_dir = root_dir
         self.__night = night
@@ -145,7 +144,7 @@ class MockProcessor(mock.MagicMock):
         pass
 
 
-class MockTrigger(IDrsTrigger):
+class MockTrigger:
     def __init__(self, root_dir, session_dir, managed_list=None):
         self.root_dir = root_dir
         self.session_dir = session_dir
@@ -170,7 +169,7 @@ class MockTrigger(IDrsTrigger):
     def exposure(self, night, filename):
         return MockExposure(Path(self.root_dir), night, filename)
 
-    def exposure_from_path(self, path: Path) -> IExposure:
+    def exposure_from_path(self, path: Path) -> Exposure:
         return MockExposure.from_path(path, self.session_dir)
 
     def reduce(self, exposures_in_order):

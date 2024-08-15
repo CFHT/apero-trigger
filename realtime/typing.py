@@ -19,12 +19,12 @@ class IRealtimeProcessor(ABC):
         self.process_id = 0
 
     @abstractmethod
-    def process_next_from_queue(self, exposure_queue: ExposureQueue, sequence_queue: SequenceQueue,
-                                exposures_done: ExposureQueue, sequences_done: SequenceQueue,
+    def process_next_from_queue(self, exposure_queue: ExposureQueue,
+                                exposures_done: ExposureQueue,
                                 block: Optional[BlockingParams] = None) -> bool:
         pass
 
 
-InitArgs = Tuple[float, Event, ExposureQueue, SequenceQueue, ExposureQueue, SequenceQueue]
-InitProcess = Callable[[float, Event, ExposureQueue, SequenceQueue, ExposureQueue, SequenceQueue], None]
+InitArgs = Tuple[float, Event, ExposureQueue, ExposureQueue]
+InitProcess = Callable[[float, Event, ExposureQueue, ExposureQueue], None]
 ProcessFromQueues = Callable[[], bool]

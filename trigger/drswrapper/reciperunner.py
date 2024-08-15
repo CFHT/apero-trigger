@@ -4,7 +4,8 @@ import typing
 from multiprocessing import Pool
 
 from logger import log
-from ...baseinterface.processor import IErrorHandler, RecipeFailure
+from trigger.drswrapper.errorhandler import IErrorHandler
+from trigger.drswrapper.recipefailure import RecipeFailure
 
 
 def flatten(items: typing.Iterable) -> typing.Iterable:
