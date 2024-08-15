@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from abc import ABC, abstractmethod
 from typing import Optional
 
 
@@ -33,13 +32,3 @@ class RecipeFailure(Exception):
 
     def with_traceback_string(self, traceback_string: str) -> RecipeFailure:
         return RecipeFailure(self.reason, self.command_string, traceback_string)
-
-
-class IErrorHandler(ABC):
-    """
-    A base class for handling recipe failures.
-    """
-
-    @abstractmethod
-    def handle_recipe_failure(self, error: RecipeFailure):
-        pass

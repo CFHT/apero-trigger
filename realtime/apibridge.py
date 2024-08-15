@@ -5,17 +5,17 @@ from pathlib import Path
 from typing import Iterable
 
 from logger import log
-from trigger.baseinterface.drstrigger import IDrsTrigger
-from trigger.baseinterface.exposure import IExposure
+from trigger import CfhtTrigger
+from trigger.common.pathhandler import Exposure
 from .manager import IExposureApi
 
 
 class ApiBridge(IExposureApi):
-    def __init__(self, file_queue: Queue[Path], trigger: IDrsTrigger):
+    def __init__(self, file_queue: Queue[Path], trigger: CfhtTrigger):
         self.queue = file_queue
         self.trigger = trigger
 
-    def get_new_exposures(self, cursor) -> Iterable[IExposure]:
+    def get_new_exposures(self, cursor) -> Iterable[Exposure]:
         exposures = []
         while not self.queue.empty():
             file = self.queue.get(block=False)
