@@ -16,8 +16,9 @@ import json
 import logging
 import sys
 from collections import defaultdict, OrderedDict
+from collections.abc import Collection, Iterable, Mapping, Sequence
 from pathlib import Path
-from typing import Collection, Dict, Mapping, List, Union, Tuple, Sequence, Iterable
+from typing import NamedTuple, Union
 from urllib.error import URLError
 from urllib.request import Request, urlopen
 
@@ -26,9 +27,9 @@ from astropy.io import fits
 log = logging.getLogger()
 
 FitsHeaderValue = Union[str, int, float, complex, bool]
-FitsHeaderCard = Union[FitsHeaderValue, Tuple[FitsHeaderValue, str]]
-FitsHeaderDict = Dict[str, FitsHeaderCard]
-JsonObj = Mapping[str, any]
+FitsHeaderCard = Union[FitsHeaderValue, tuple[FitsHeaderValue, str]]
+FitsHeaderDict = dict[str, FitsHeaderCard]
+JsonObj = dict[str, Union[dict, list, str, int, float, bool, None]]
 
 PRODUCT_ROOT = '/data/spirou4/apero-data/offline/out/'
 DISTRIBUTION_ROOT = '/data/distribution/spirou/'
@@ -51,6 +52,47 @@ def json_request(url: str, data: JsonObj, headers: Mapping[str, str] = None, ret
             return json.loads(response.read().decode('utf-8'))
 
 
+class Exposure(NamedTuple):
+    grade: int
+    state: str
+
+    @staticmethod
+    def from_exposure_data(exposure_data: JsonObj) -> 'Exposure':
+        exposure_status = exposure_data['exposure_status']
+        grade = exposure_status.get('grade')
+        state = exposure_status['exp_status']
+        return Exposure(grade, state)
+
+    def to_header(self) -> FitsHeaderDict:
+        return {
+            'QSOVALID': (self.state, 'QSO validation state'),
+            'QSOGRADE': (self.grade, 'QSO grade (1=good 5=unusable)'),
+        }
+
+
+class ExposureSequence:
+    exposures: list[Exposure]
+
+    def __init__(self, exposures):
+        self.exposures = exposures
+
+    @staticmethod
+    def indexed_header_key(original_key: str, index: int, max_index: int) -> str:
+        n_digits = len(str(max_index))
+        n_key_chars = min(8 - n_digits, len(original_key))
+        return original_key[:n_key_chars] + str(index)
+
+    def to_header(self) -> FitsHeaderDict:
+        per_key = defaultdict(OrderedDict)
+        for i, exposure in enumerate(self.exposures):
+            header_cards = exposure.to_header()
+            for key, value in header_cards.items():
+                new_key = self.indexed_header_key(key, i + 1, len(self.exposures))
+                per_key[key][new_key] = value
+        combined = {key: value for current in per_key.values() for key, value in current.items()}
+        return combined
+
+
 class QsoDatabase:
     def __init__(self):
         try:
@@ -59,54 +101,31 @@ class QsoDatabase:
         except OSError:
             log.error('Failed to load API bearer token, will not be able to access database', exc_info=False)
             self.bearer_token = None
+        self.cache = dict()
 
-    def get_exposure(self, obsid: int) -> JsonObj:
-        result = self.get_exposure_range(obsid, obsid)
-        if result:
-            return result[0]
+    def fetch_and_cache(self, obsids: Collection[int]) -> dict[int, Exposure]:
+        result = self.get_exposures(obsids)
+        self.cache.update(result)
+        return result
 
-    def get_exposure_range(self, first: int, last: int) -> List[JsonObj]:
-        try:
-            return self.get_exposures_status({
-                'obsid_range': {
-                    'first': first,
-                    'last': last
-                }
-            })
-        except URLError:
-            log.error('Error fetching exposures for obsid range %s-%s', first, last, exc_info=True)
+    def get_exposure_lazy(self, obsid: int) -> Exposure:
+        return self.cache[obsid]
 
-    def get_exposures_status(self, request_data: JsonObj) -> List[JsonObj]:
+    def get_exposure_range_lazy(self, first: int, last: int) -> ExposureSequence:
+        return ExposureSequence([self.cache[i] for i in range(first, last + 1)])
+
+    def get_exposures(self, obsids: Collection[int]) -> dict[int, Exposure]:
         if not self.bearer_token:
             log.warning('No bearer token loaded, cannot fetch values from the database')
-            return []
+            return {}
         auth_headers = {'Authorization': 'Bearer ' + self.bearer_token}
         url = 'https://api.cfht.hawaii.edu/op/exposures'
-        response_data = json_request(url, request_data, headers=auth_headers, retries=2)
-        return [exposure['exposure_status'] for exposure in response_data['exposure']]
-
-
-def exp_status_db_to_header(exposure_status: JsonObj) -> FitsHeaderDict:
-    return {
-        'QSOVALID': (exposure_status['exp_status'], 'QSO validation state'),
-        'QSOGRADE': (exposure_status.get('grade'), 'QSO grade (1=good 5=unusable)'),
-    }
-
-
-def seq_status_db_to_header(exposure_statuses: Collection[JsonObj]) -> FitsHeaderDict:
-    def indexed_header_key(original_key: str, index: int, max_index: int) -> str:
-        n_digits = len(str(max_index))
-        n_key_chars = min(8 - n_digits, len(original_key))
-        return original_key[:n_key_chars] + str(index)
-
-    per_key = defaultdict(OrderedDict)
-    for i, exposure_status in enumerate(exposure_statuses):
-        header_cards = exp_status_db_to_header(exposure_status)
-        for key, value in header_cards.items():
-            new_key = indexed_header_key(key, i + 1, len(exposure_statuses))
-            per_key[key][new_key] = value
-    combined = {key: value for current in per_key.values() for key, value in current.items()}
-    return combined
+        request_data = {
+            'obsid_list': {'value': list(obsids)},
+            'response_filter': 'SPIROU_HEADERS',
+        }
+        response = json_request(url, request_data, headers=auth_headers, retries=2)
+        return {int(exposure['obsid']): Exposure.from_exposure_data(exposure) for exposure in response['exposure']}
 
 
 def get_distribution_path(source: Path, run_id: str, distribution_subdirectory: str) -> Path:
@@ -134,6 +153,17 @@ def distribute_product(product: Path, header_values: FitsHeaderDict, quicklook: 
         log.info('Distributing %s', destination)
 
 
+def extract_odometer(file: Path):
+    odometer = int(file.stem[0:-1])
+    return odometer
+
+
+def extract_odometer_ftype(file: Path):
+    odometer = int(file.stem[0:-1])
+    letter = file.stem[-1]
+    return odometer, letter
+
+
 class Distributor:
     def __init__(self, quicklook: bool = False):
         self.quicklook = quicklook
@@ -155,24 +185,26 @@ class Distributor:
         log.info('Distributing night %s', night)
         night_dir = Path(PRODUCT_ROOT, night)
         products = list(sorted(file for file in night_dir.glob('*.fits') if file.exists()))
+        odometers = list(extract_odometer(product) for product in products)
+        self.qso_database.fetch_and_cache(odometers)
         for product in products:
             self.distribute_product(product)
 
     def distribute_file(self, night: str, file: str):
         product_file = Path(PRODUCT_ROOT, night, file)
+        odometer = extract_odometer(product_file)
+        self.qso_database.fetch_and_cache((odometer,))
         self.distribute_product(product_file)
 
     def distribute_product(self, product_file: Path):
-        odometer = int(product_file.stem[0:-1])
-        letter = product_file.stem[-1]
-        qso_database: QsoDatabase
+        odometer, letter = extract_odometer_ftype(product_file)
         if letter == 'p':
-            exposure_statuses = self.qso_database.get_exposure_range(odometer, odometer + 3)
-            header_values = seq_status_db_to_header(exposure_statuses)
+            sequence = self.qso_database.get_exposure_range_lazy(odometer, odometer + 3)
+            header_values = sequence.to_header()
             distribute_product(product_file, header_values, self.quicklook)
         else:
-            exposure_status = self.qso_database.get_exposure(odometer)
-            header_values = exp_status_db_to_header(exposure_status)
+            exposure = self.qso_database.get_exposure_lazy(odometer)
+            header_values = exposure.to_header()
             distribute_product(product_file, header_values, self.quicklook)
 
     @staticmethod
