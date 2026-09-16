@@ -121,7 +121,10 @@ class QsoDatabase:
         auth_headers = {'Authorization': 'Bearer ' + self.bearer_token}
         url = 'https://api.cfht.hawaii.edu/op/exposures'
         request_data = {
-            'obsid_list': {'value': list(obsids)},
+            'obsid_range': {
+                'first': min(obsids),
+                'last': max(obsids),
+            },
             'response_filter': 'SPIROU_HEADERS',
         }
         response = json_request(url, request_data, headers=auth_headers, retries=2)
@@ -186,6 +189,7 @@ class Distributor:
         night_dir = Path(PRODUCT_ROOT, night)
         products = list(sorted(file for file in night_dir.glob('*.fits') if file.exists()))
         odometers = list(extract_odometer(product) for product in products)
+        self.qso_database.cache = dict()
         self.qso_database.fetch_and_cache(odometers)
         for product in products:
             self.distribute_product(product)
