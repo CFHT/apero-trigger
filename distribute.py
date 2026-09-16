@@ -31,9 +31,11 @@ FitsHeaderCard = Union[FitsHeaderValue, tuple[FitsHeaderValue, str]]
 FitsHeaderDict = dict[str, FitsHeaderCard]
 JsonObj = dict[str, Union[dict, list, str, int, float, bool, None]]
 
-PRODUCT_ROOT = '/data/spirou4/apero-data/offline/out/'
+DATA_ROOT = '/data/spirou4/apero-data/'
 DISTRIBUTION_ROOT = '/data/distribution/spirou/'
 KEY_FILE = '/h/spirou/bin/.cfht_access'
+OFFLINE_PROFILE = 'offline293'
+QUICKLOOK_PROFILE = 'quicklook'
 
 
 def json_request(url: str, data: JsonObj, headers: Mapping[str, str] = None, retries=0) -> JsonObj:
@@ -168,7 +170,8 @@ def extract_odometer_ftype(file: Path):
 
 
 class Distributor:
-    def __init__(self, quicklook: bool = False):
+    def __init__(self, profile: str, quicklook: bool = False):
+        self.product_root = Path(DATA_ROOT, profile, 'out')
         self.quicklook = quicklook
         self.qso_database = QsoDatabase()
 
@@ -186,7 +189,7 @@ class Distributor:
 
     def distribute_night(self, night: str):
         log.info('Distributing night %s', night)
-        night_dir = Path(PRODUCT_ROOT, night)
+        night_dir = Path(self.product_root, night)
         products = list(sorted(file for file in night_dir.glob('*.fits') if file.exists()))
         odometers = list(extract_odometer(product) for product in products)
         self.qso_database.cache = dict()
@@ -195,7 +198,7 @@ class Distributor:
             self.distribute_product(product)
 
     def distribute_file(self, night: str, file: str):
-        product_file = Path(PRODUCT_ROOT, night, file)
+        product_file = Path(self.product_root, night, file)
         odometer = extract_odometer(product_file)
         self.qso_database.fetch_and_cache((odometer,))
         self.distribute_product(product_file)
@@ -211,9 +214,8 @@ class Distributor:
             header_values = exposure.to_header()
             distribute_product(product_file, header_values, self.quicklook)
 
-    @staticmethod
-    def __find_nights(night_pattern: str) -> Sequence[str]:
-        night_root = Path(PRODUCT_ROOT)
+    def __find_nights(self, night_pattern: str) -> Sequence[str]:
+        night_root = Path(self.product_root)
         nights = [str(night.relative_to(night_root)) for night in night_root.glob(night_pattern) if night.is_dir()]
         return sorted(nights)
 
@@ -239,7 +241,8 @@ if __name__ == '__main__':
     log.addHandler(console_handler)
     log.setLevel(logging.DEBUG)
 
-    distributor = Distributor(args.quicklook)
+    profile = QUICKLOOK_PROFILE if args.quicklook else OFFLINE_PROFILE
+    distributor = Distributor(profile, args.quicklook)
     if args.command == 'qrunid':
         distributor.distribute_qrun(args.qrunid)
     elif args.command == 'night':
