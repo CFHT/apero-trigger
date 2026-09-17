@@ -32,7 +32,7 @@ FitsHeaderDict = dict[str, FitsHeaderCard]
 JsonObj = dict[str, Union[dict, list, str, int, float, bool, None]]
 
 DATA_ROOT = '/data/spirou4/apero-data/'
-DISTRIBUTION_ROOT = '/data/distribution/spirou/'
+DISTRIBUTION_ROOT = '/data/distribution/spirou/' # Set to None to update files in place
 KEY_FILE = '/h/spirou/bin/.cfht_access'
 OFFLINE_PROFILE = 'offline293'
 QUICKLOOK_PROFILE = 'quicklook'
@@ -143,19 +143,22 @@ def get_distribution_path(source: Path, run_id: str, distribution_subdirectory: 
 
 
 def distribute_product(product: Path, header_values: FitsHeaderDict, quicklook: bool):
-    subdir = 'quicklook' if quicklook else 'reduced'
+    file_mode = 'readonly' if DISTRIBUTION_ROOT else 'update'
     try:
-        hdulist = fits.open(product)
-        run_id = hdulist[0].header['RUNID']
-        hdulist[0].header.update(header_values)
-        destination = get_distribution_path(product, run_id, subdir)
-        hdulist.writeto(destination, overwrite=True)
+        with fits.open(product, mode=file_mode) as hdulist:
+            hdulist[0].header.update(header_values)
+            if DISTRIBUTION_ROOT:
+                subdir = 'quicklook' if quicklook else 'reduced'
+                run_id = hdulist[0].header['RUNID']
+                destination = get_distribution_path(product, run_id, subdir)
+                log.info('Distributing %s', destination)
+                hdulist.writeto(destination, overwrite=True)
+            else:
+                log.info('Distributing %s', product)
     except FileNotFoundError as err:
         log.error('Distribution of %s failed: unable to open file %s', product, err.filename)
     except Exception:
         log.error('Distribution of %s failed', product, exc_info=True)
-    else:
-        log.info('Distributing %s', destination)
 
 
 def extract_odometer(file: Path):
